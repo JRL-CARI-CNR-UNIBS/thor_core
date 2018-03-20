@@ -146,6 +146,10 @@ void ThorQP::setIntervals ( const unsigned int& num_of_intervals,
   m_nc=num_of_intervals;
   
   m_are_matrices_updated=false;
+  
+  m_sol.resize( (m_nax+1)*m_nc);
+  m_sol.setZero();
+  
 }
 
 void ThorQP::setWeigthFunction ( const double& lambda_acc, const double& lambda_tau, const double& lambda_scaling, const double& lambda_clik )
@@ -159,10 +163,50 @@ void ThorQP::setWeigthFunction ( const double& lambda_acc, const double& lambda_
 
 void ThorQP::updateMatrices()
 {
+  m_CE.resize((m_nax+1)*m_nc,0);
+  m_ce0.resize(0);
+  
   quadraticControlIntervals(m_control_horizon_time,m_nc,m_dt,m_control_intervals,m_prediction_time);
   computeEvolutionMatrix(m_prediction_time,m_control_intervals,m_nax,m_free_response,m_forced_response);
   thor::math::splitResponses(m_free_response,m_velocity_free_resp,m_position_free_resp,m_forced_response,m_velocity_forced_resp,m_position_forced_resp,m_nax);
   
+  m_lb.resize(m_nc*(m_nax+1));
+  m_ub.resize(m_nc*(m_nax+1));
+  for (unsigned int ic=0;ic<m_nc;ic++)
+  {
+    m_lb.segment(ic*m_nax,m_nax) = -m_DDqmax;
+    m_ub.segment(ic*m_nax,m_nax) =  m_DDqmax;
+  }
+  m_lb.tail(m_nc).setConstant(0.005);
+  m_ub.tail(m_nc).setConstant(1.01);
+  
+  /*
+   * I u > lb    ->  I*u+lb>0
+   * I u <ub    ->  -I*u+ub>0
+   * Fv u +fv*v0 > -Dqmax    ->   Fv*u+fv*v0+Dqmax>0
+   * Fv u +fv*v0 <  Dqmax    ->  -Fv*u-fv*v0+Dqmax>0
+   * 
+   * A^T =[I            -I          Fv      -Fv ]
+   *       nc*(nax+1)   nc*(nax+1)  nc*nax  nc*nax
+   * 
+   * 
+   */
+  m_CI.resize(m_nc*(m_nax+1),  4*m_nc*m_nax+2*m_nc);
+  m_CI.setZero();
+  m_CI.block(0,0,m_nc*(m_nax+1),m_nc*(m_nax+1)).setIdentity();
+  m_CI.block(0,m_nc*(m_nax+1),m_nc*(m_nax+1),m_nc*(m_nax+1))=-m_CI.block(0,0,m_nc*(m_nax+1),m_nc*(m_nax+1));
+  m_CI.block(0,2*m_nc*(m_nax+1),           m_nc*m_nax,m_nc*m_nax)=m_velocity_forced_resp.transpose();
+  m_CI.block(0,2*m_nc*(m_nax+1)+m_nc*m_nax,m_nc*m_nax,m_nc*m_nax)=-m_velocity_forced_resp.transpose();
+  
+  m_ci0.resize(m_CI.cols());
+  m_ci0.setZero();
+  m_ci0.head(m_nc*(m_nax+1))=-m_lb; 
+  m_ci0.segment(m_nc*(m_nax+1),m_nc*(m_nax+1))=m_ub;
+  for (unsigned int ic=0;ic<m_nc;ic++)
+  {
+    m_ci0.segment(2*m_nc*(m_nax+1)           +ic*m_nax,m_nax)=m_Dqmax;  // A^T*u>-Dqmax -> A^T*u+Dqmax>0
+    m_ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc+ic*m_nax,m_nax)=m_Dqmax; // A^T*u<Dqmax ->  A^T*u-Dqmax<0 ->  -A^T*u+Dqmax>0
+  }
   m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
   m_next_position_free_resp=m_position_free_resp.topRows(m_nax);
   
@@ -218,35 +262,11 @@ void ThorQP::computeActualMatrices ( const Eigen::VectorXd& targetDq, const Eige
   
   m_f.tail(m_nc) -= DQT.transpose()*m_velocity_free_resp*x0.tail(m_nax);
   
-//   ROS_FATAL_STREAM("x0.tail(m_nax)=\n" << x0.tail(m_nax).transpose());
-//   ROS_FATAL_STREAM("m_velocity_free_resp*x0.tail(m_nax)=\n" << (m_velocity_free_resp*x0.tail(m_nax)).transpose());
-//   ROS_FATAL_STREAM("m_f_vel*x0.tail(m_nax)=\n" << (m_f_vel*x0.tail(m_nax)).transpose());
-//   ROS_FATAL_STREAM("m_f_pos*x0=\n" << (m_f_pos*x0).transpose());
-//   ROS_FATAL_STREAM("m_f_scaling*target_scaling=\n" << (m_f_scaling*target_scaling).transpose());
-//   ROS_FATAL_STREAM("-m_lambda_clik* (m_next_position_forced_resp.transpose()*next_targetQ).col(0)=\n" << (-m_lambda_clik* (m_next_position_forced_resp.transpose()*next_targetQ).col(0)).transpose());
-//   
   
 }
 
 
-bool ThorQP::computedUncostrainedSolution ( const Eigen::VectorXd& targetDq, 
-                                            const Eigen::VectorXd& next_targetQ,
-                                            const double& target_scaling,
-                                            const Eigen::VectorXd& x0,
-                                            Eigen::VectorXd& next_acc,
-                                            double& next_scaling )
-{
-  computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
-  
-  Eigen::VectorXd sol=-m_H.inverse()*m_f;
-  next_acc=sol.head(m_nax);
-  next_scaling=sol(m_nax*m_nc);
-  
-//   ROS_FATAL_STREAM("accelerations:\n"<< (sol.head(m_nc*m_nax)).transpose());
-//   ROS_FATAL_STREAM("scaling:\n"<< (sol.tail(m_nc)).transpose());
-  
-  return true;
-}
+
 
 void ThorQP::setInitialState ( const Eigen::VectorXd& x0 )
 {
@@ -265,7 +285,44 @@ Eigen::VectorXd ThorQP::getState()
   return m_state;
 }
 
-
+bool ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq, 
+                                          const Eigen::VectorXd& next_targetQ, 
+                                          const double& target_scaling, 
+                                          const Eigen::VectorXd& x0, 
+                                          Eigen::VectorXd& next_acc, 
+                                          double& next_scaling )
+{
+  computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
+  
+  Eigen::VectorXd ci0=m_ci0;
+  ci0.segment(2*m_nc*(m_nax+1)           ,m_nax*m_nc)+=m_velocity_free_resp*x0.tail(m_nax);
+  ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc,m_nax*m_nc)-=m_velocity_free_resp*x0.tail(m_nax);
+  
+  
+  Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
+  next_acc=m_sol.head(m_nax);
+  next_scaling=m_sol (m_nax*m_nc);
+  return true;
+}
+bool ThorQP::computedUncostrainedSolution ( const Eigen::VectorXd& targetDq, 
+                                            const Eigen::VectorXd& next_targetQ,
+                                            const double& target_scaling,
+                                            const Eigen::VectorXd& x0,
+                                            Eigen::VectorXd& next_acc,
+                                            double& next_scaling )
+{
+  computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
+  
+  m_svd.compute( m_H, Eigen::ComputeThinU | Eigen::ComputeThinV );
+  m_sol=-m_svd.solve(m_f);
+  next_acc=m_sol.head(m_nax);
+  next_scaling=m_sol (m_nax*m_nc);
+  
+  //   ROS_FATAL_STREAM("accelerations:\n"<< (sol.head(m_nc*m_nax)).transpose());
+  //   ROS_FATAL_STREAM("scaling:\n"<< (sol.tail(m_nc)).transpose());
+  
+  return true;
+}
 
 }
 }

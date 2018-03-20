@@ -1,9 +1,10 @@
 #ifndef __thor_math__
 #define __thor_math__
 
+
 #include "Eigen/Dense"
 #include <ros/console.h>
-
+#include <itia_mutils/eiquadprog.hpp>
 namespace thor 
 {
 namespace math
@@ -45,8 +46,15 @@ protected:
   Eigen::MatrixXd m_H;
   Eigen::VectorXd m_f; 
   
+  Eigen::VectorXd m_sol;
+  
   Eigen::VectorXd m_ub;
   Eigen::VectorXd m_lb;
+  Eigen::MatrixXd m_CE;
+  Eigen::VectorXd m_ce0;
+  
+  Eigen::MatrixXd m_CI;
+  Eigen::VectorXd m_ci0;
   
   Eigen::VectorXd m_qmax;
   Eigen::VectorXd m_qmin;
@@ -66,7 +74,7 @@ protected:
   Eigen::MatrixXd m_velocity_forced_resp;
   Eigen::MatrixXd m_do_scaling; // applying the scaling to trajectory
 
-  
+  Eigen::JacobiSVD<Eigen::MatrixXd>  m_svd;
   
   unsigned int m_nc; //number of control and prediction intervals
   unsigned int m_nax; //number of joints
@@ -111,10 +119,19 @@ public:
                                       Eigen::VectorXd& next_acc,
                                       double& next_scaling
                                    );
+  bool computedCostrainedSolution(  const Eigen::VectorXd& targetDq, 
+                                      const Eigen::VectorXd& next_targetQ,
+                                      const double& target_scaling,
+                                      const Eigen::VectorXd& x0,
+                                      Eigen::VectorXd& next_acc,
+                                      double& next_scaling
+  );
   
   void setInitialState(const Eigen::VectorXd& x0);
   void updateState( const Eigen::VectorXd& next_acc );
   Eigen::VectorXd getState();
+  Eigen::VectorXd getPredictionTimeInstant(){return m_prediction_time;};
+  
 };
 
 }
