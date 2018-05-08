@@ -177,7 +177,7 @@ void ThorQP::updateMatrices()
     m_lb.segment(ic*m_nax,m_nax) = -m_DDqmax;
     m_ub.segment(ic*m_nax,m_nax) =  m_DDqmax;
   }
-  m_lb.tail(m_nc).setConstant(0.005);
+  m_lb.tail(m_nc).setConstant(0.05);
   m_ub.tail(m_nc).setConstant(1.01);
   
   /*
