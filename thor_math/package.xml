@@ -54,7 +54,8 @@
   <exec_depend>roscpp</exec_depend>
   <depend>eigen_conversions</depend>
   <depend>sensor_msgs</depend>
-  <depend>itia_mutils</depend>
+  <depend>itia_dynamics_core</depend>
+  
   
   <!-- The export tag contains other, unspecified, tags -->
   <export>

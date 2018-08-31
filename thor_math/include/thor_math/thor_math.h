@@ -4,18 +4,20 @@
 
 #include "Eigen/Dense"
 #include <ros/console.h>
-#include <itia_mutils/eiquadprog.hpp>
+#include <thor_math/eiquadprog.hpp>
+#include <itia_dynamics_core/itia_primitives.h>
+
 namespace thor 
 {
 namespace math
 {
   
-bool computeEvolutionMatrix(const Eigen::Ref<Eigen::VectorXd> prediction_time,
-                            const Eigen::Ref<Eigen::VectorXd> control_intervals,
-                            const unsigned int& nax,
-                            Eigen::MatrixXd& free_response,
-                            Eigen::MatrixXd& forced_response
-                                  );
+bool computeEvolutionMatrix( const Eigen::Ref<Eigen::VectorXd> prediction_time,
+                             const Eigen::Ref<Eigen::VectorXd> control_intervals,
+                             const unsigned int& nax,
+                             Eigen::MatrixXd& free_response,
+                             Eigen::MatrixXd& forced_response
+                            );
 
 Eigen::MatrixXd freeResponse(const double& t, const unsigned int& nax);
 Eigen::MatrixXd forcedResponse(const double& t, const unsigned int& nax);
@@ -62,6 +64,9 @@ protected:
   Eigen::VectorXd m_DDqmax;
   Eigen::VectorXd m_tau_max;
   
+  Eigen::VectorXd m_prediction_pos;
+  Eigen::VectorXd m_prediction_vel;
+  
   Eigen::VectorXd m_control_intervals;
   Eigen::VectorXd m_prediction_time;
   Eigen::MatrixXd m_forced_response;
@@ -86,6 +91,8 @@ protected:
   double m_lambda_scaling;
   double m_lambda_clik;
   Eigen::VectorXd m_state;
+  
+  boost::shared_ptr<itia::dynamics::Chain>  m_chain;
   
   
   void computeActualMatrices( const Eigen::VectorXd& targetDq, 
@@ -132,6 +139,8 @@ public:
   Eigen::VectorXd getState();
   Eigen::VectorXd getPredictionTimeInstant(){return m_prediction_time;};
   
+  
+  void setDynamicsChain(const boost::shared_ptr<itia::dynamics::Chain>&  chain);
 };
 
 }
