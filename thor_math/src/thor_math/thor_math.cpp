@@ -247,31 +247,53 @@ void ThorQP::updateMatrices()
   m_H.setZero();
   m_f.setZero();
   
+  m_prediction_pos.resize(m_nax*m_nc);
+  m_prediction_vel.resize(m_nax*m_nc);
+  
 }
 
 void ThorQP::computeActualMatrices ( const Eigen::VectorXd& targetDq, const Eigen::VectorXd& next_targetQ, const double& target_scaling, const Eigen::VectorXd& x0 )
 {
   Eigen::MatrixXd DQT=targetDq.asDiagonal()*m_do_scaling;
+  
   m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc)=-m_velocity_forced_resp.transpose()*DQT;
   m_H_variable.block(m_nax*m_nc,0,m_nc,m_nax*m_nc)=m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc).transpose();
   m_H_variable.block(m_nax*m_nc,m_nax*m_nc,m_nc,m_nc)=DQT.transpose()*DQT;
-  m_H=m_H_fixed+m_H_variable;
   
   m_f = m_f_vel*x0.tail(m_nax)+m_f_pos*x0+m_f_scaling*target_scaling;
   m_f.head(m_nc*m_nax) -= m_lambda_clik* (m_next_position_forced_resp.transpose()*next_targetQ).col(0);
   
   m_f.tail(m_nc) -= DQT.transpose()*m_velocity_free_resp*x0.tail(m_nax);
   
+  if (m_chain)
+  {
+    for (unsigned int ic=0; ic<m_nc; ic++)
+    {
+      Eigen::VectorXd qc  = m_prediction_pos.block(ic*m_nax,0,m_nax,1);
+      Eigen::VectorXd Dqc = m_prediction_vel.block(ic*m_nax,0,m_nax,1);
+      
+      Eigen::VectorXd non_linear_part_torque=m_chain->getJointTorqueNonLinearPart(qc,Dqc);
+      Eigen::MatrixXd inertia_matrix = m_chain->getJointInertia(qc);
+      
+      m_H_variable.block(ic*m_nax,ic*m_nax,m_nax,m_nax) += m_lambda_tau * inertia_matrix.transpose()*inertia_matrix;
+      m_f.block(ic*m_nax,0,m_nax,1)                     += m_lambda_tau * non_linear_part_torque.transpose()*inertia_matrix;
+    }
+  }
+  m_H=m_H_fixed+m_H_variable;
   
 }
-
-
-
 
 void ThorQP::setInitialState ( const Eigen::VectorXd& x0 )
 {
   assert(x0.size()==m_nax*2);
   m_state=x0;
+  
+  for (unsigned int ic=0; ic<m_nc; ic++)
+  {
+    m_prediction_pos.block(ic*m_nax,0,m_nax,1)=x0.head(m_nax);
+    m_prediction_vel.block(ic*m_nax,0,m_nax,1).setZero();
+  }
+  
 }
 
 void ThorQP::updateState ( const Eigen::VectorXd& next_acc )
@@ -302,8 +324,14 @@ bool ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
   Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
   next_acc=m_sol.head(m_nax);
   next_scaling=m_sol (m_nax*m_nc);
+  
+  m_prediction_vel = m_velocity_forced_resp*m_sol.head(m_nc*m_nax)+m_velocity_free_resp*x0.tail(m_nax);
+  m_prediction_pos = m_position_forced_resp*m_sol.head(m_nc*m_nax)+m_position_free_resp*x0.tail(m_nax);
+  
+  
   return true;
 }
+
 bool ThorQP::computedUncostrainedSolution ( const Eigen::VectorXd& targetDq, 
                                             const Eigen::VectorXd& next_targetQ,
                                             const double& target_scaling,
@@ -323,6 +351,12 @@ bool ThorQP::computedUncostrainedSolution ( const Eigen::VectorXd& targetDq,
   
   return true;
 }
+
+void ThorQP::setDynamicsChain(const boost::shared_ptr< itia::dynamics::Chain >& chain)
+{
+  m_chain=chain;
+}
+
 
 }
 }

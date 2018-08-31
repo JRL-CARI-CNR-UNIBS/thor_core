@@ -6,8 +6,6 @@ set(CMAKE_BUILD_TYPE Release)
 
 find_package(catkin REQUIRED COMPONENTS
   eigen_conversions
-  itia_mutils
-  roscpp
   roscpp
   sensor_msgs
   trajectory_msgs
@@ -15,7 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES thor_prefilter
- CATKIN_DEPENDS eigen_conversions itia_mutils roscpp roscpp sensor_msgs trajectory_msgs
+ CATKIN_DEPENDS eigen_conversions  roscpp sensor_msgs trajectory_msgs
  DEPENDS 
 )
 
