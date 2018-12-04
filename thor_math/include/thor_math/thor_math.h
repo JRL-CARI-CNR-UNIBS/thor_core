@@ -5,7 +5,7 @@
 #include "Eigen/Dense"
 #include <ros/console.h>
 #include <thor_math/eiquadprog.hpp>
-#include <itia_dynamics_core/itia_primitives.h>
+#include <rosdyn_core/primitives.h>
 
 namespace thor 
 {
@@ -92,7 +92,7 @@ protected:
   double m_lambda_clik;
   Eigen::VectorXd m_state;
   
-  boost::shared_ptr<itia::dynamics::Chain>  m_chain;
+  boost::shared_ptr<rosdyn::Chain>  m_chain;
   
   
   void computeActualMatrices( const Eigen::VectorXd& targetDq, 
@@ -140,7 +140,7 @@ public:
   Eigen::VectorXd getPredictionTimeInstant(){return m_prediction_time;};
   
   
-  void setDynamicsChain(const boost::shared_ptr<itia::dynamics::Chain>&  chain);
+  void setDynamicsChain(const boost::shared_ptr<rosdyn::Chain>&  chain);
 };
 
 }

@@ -5,14 +5,14 @@ add_compile_options(-std=c++11 -funroll-loops -Wall -Ofast)
 set(CMAKE_BUILD_TYPE Release)
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp cmake_modules eigen_conversions sensor_msgs itia_dynamics_core
+  roscpp cmake_modules eigen_conversions sensor_msgs rosdyn_core
 )
 find_package(Eigen3 REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS roscpp eigen_conversions sensor_msgs itia_dynamics_core
+  CATKIN_DEPENDS roscpp eigen_conversions sensor_msgs rosdyn_core
   DEPENDS 
 )
 
