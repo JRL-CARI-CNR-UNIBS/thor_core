@@ -6,6 +6,8 @@ namespace thor
 
 ThorPrefilter::ThorPrefilter()
 {
+
+
   m_order=1;
 }
 
@@ -25,7 +27,7 @@ bool ThorPrefilter::setTrajectory(const trajectory_msgs::JointTrajectoryPtr& trj
     ROS_ERROR("Trajectory is not set");
     return false;
   }
-  m_trj=trj; 
+  m_trj=trj;
   return m_trj->points.size()>0;
 }
 
@@ -183,5 +185,5 @@ ros::Duration ThorPrefilter::trjTime()
     return ros::Duration(0);
 }
 
-  
+
 }
