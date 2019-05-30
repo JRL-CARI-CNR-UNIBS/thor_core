@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(thor_math)
 
-add_compile_options(-std=c++11 -funroll-loops -Wall -Ofast)
-set(CMAKE_BUILD_TYPE Release)
+#add_compile_options(-std=c++11 -funroll-loops -Wall -Ofast)
+add_compile_options(-std=c++11)
+set(CMAKE_BUILD_TYPE Debug)
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp cmake_modules eigen_conversions sensor_msgs rosdyn_core
+  roscpp  eigen_conversions sensor_msgs rosdyn_core
 )
 find_package(Eigen3 REQUIRED)
 
