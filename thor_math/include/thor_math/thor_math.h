@@ -63,6 +63,8 @@ protected:
   Eigen::VectorXd m_Dqmax;
   Eigen::VectorXd m_DDqmax;
   Eigen::VectorXd m_tau_max;
+
+  bool m_are_position_bounds_active;
   
   Eigen::VectorXd m_prediction_pos;
   Eigen::VectorXd m_prediction_vel;
@@ -78,6 +80,7 @@ protected:
   Eigen::MatrixXd m_velocity_free_resp;
   Eigen::MatrixXd m_velocity_forced_resp;
   Eigen::MatrixXd m_do_scaling; // applying the scaling to trajectory
+  Eigen::MatrixXd m_invariance_free_resp;
 
   Eigen::JacobiSVD<Eigen::MatrixXd>  m_svd;
   
@@ -94,19 +97,24 @@ protected:
   
   boost::shared_ptr<rosdyn::Chain>  m_chain;
   
-  
-  void computeActualMatrices( const Eigen::VectorXd& targetDq, 
+  virtual void computeActualMatrices( const Eigen::VectorXd& targetDq,
                               const Eigen::VectorXd& next_targetQ,
                               const double& target_scaling,
                               const Eigen::VectorXd& x0);
-  
+
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   ThorQP();
+
   void setConstraints(const Eigen::VectorXd& qmax,
                  const Eigen::VectorXd& qmin,
                  const Eigen::VectorXd& Dqmax,
                  const Eigen::VectorXd& DDqmax,
                  const Eigen::VectorXd& tau_max);
+
+  void activatePositionBounds(const bool enable_pos_bounds);
+
+  bool arePositionBoundsActive();
   
   void setIntervals(const unsigned int& num_of_intervals,
                     const unsigned int& num_of_joints,
@@ -117,16 +125,16 @@ public:
   
   bool needUpdate(){return !m_are_matrices_updated;};
   
-  void updateMatrices();
+  virtual void updateMatrices();
   
-  bool computedUncostrainedSolution(  const Eigen::VectorXd& targetDq, 
+  virtual bool computedUncostrainedSolution(  const Eigen::VectorXd& targetDq,
                                       const Eigen::VectorXd& next_targetQ,
                                       const double& target_scaling,
                                       const Eigen::VectorXd& x0,
                                       Eigen::VectorXd& next_acc,
                                       double& next_scaling
                                    );
-  bool computedCostrainedSolution(  const Eigen::VectorXd& targetDq, 
+  virtual bool computedCostrainedSolution(  const Eigen::VectorXd& targetDq,
                                       const Eigen::VectorXd& next_targetQ,
                                       const double& target_scaling,
                                       const Eigen::VectorXd& x0,
