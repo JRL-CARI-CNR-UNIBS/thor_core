@@ -55,7 +55,8 @@
   <depend>eigen_conversions</depend>
   <depend>sensor_msgs</depend>
   <depend>rosdyn_core</depend>
-  
+  <depend>eigen_matrix_utils</depend>
+
   
   <!-- The export tag contains other, unspecified, tags -->
   <export>
