@@ -67,6 +67,34 @@ bool computeEvolutionMatrix ( const Eigen::Ref< Eigen::VectorXd > prediction_tim
   
 }
 
+bool computeJerkEvolutionMatrix ( const Eigen::Ref< Eigen::VectorXd > prediction_time, const Eigen::Ref< Eigen::VectorXd > control_intervals, const unsigned int& nax, Eigen::MatrixXd& free_response, Eigen::MatrixXd& forced_response )
+{
+  unsigned int np=prediction_time.size();
+  if (np==0)
+    return false;
+
+  unsigned int nc=control_intervals.size();
+  if (nc==0)
+    return false;
+
+  forced_response.resize(np*nax,nc*nax);
+  free_response.resize(np*nax,nax);
+
+  free_response.setZero();
+  free_response.block(0,0,nax,nax)=-Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(0);
+
+  forced_response.setZero();
+  forced_response.block(0,0,nax,nax)=Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(0);
+  for (unsigned int idx=1;idx<nc;idx++)
+  {
+    forced_response.block(nax*idx,nax*(idx-1),nax,nax)=-Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(idx);
+    forced_response.block(nax*idx,nax*idx,nax,nax)    = Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(idx);
+  }
+
+  return true;
+
+}
+
 bool quadraticControlIntervals ( const double& control_horizon_time, const unsigned int& n_control, const double& first_interval, Eigen::VectorXd& control_intervals, Eigen::VectorXd& prediction_time )
 {
   assert(first_interval>0);
@@ -123,6 +151,7 @@ ThorQP::ThorQP()
 {
   m_are_matrices_updated=false;
   m_are_position_bounds_active=false;
+  m_are_torque_bounds_active=false;
 }
 
 void ThorQP::setConstraints ( const Eigen::VectorXd& qmax, const Eigen::VectorXd& qmin, const Eigen::VectorXd& Dqmax, const Eigen::VectorXd& DDqmax, const Eigen::VectorXd& tau_max )
@@ -143,6 +172,16 @@ void ThorQP::activatePositionBounds(const bool enable_pos_bounds)
     m_are_position_bounds_active=enable_pos_bounds;
     m_are_matrices_updated=false;
     ROS_INFO("Position bounds activated. Execute update matrices to load the new options.");
+  }
+}
+
+void ThorQP::activateTorqueBounds(const bool enable_tau_bounds)
+{
+  if (m_are_position_bounds_active!=enable_tau_bounds)
+  {
+    m_are_torque_bounds_active=enable_tau_bounds;
+    m_are_matrices_updated=false;
+    ROS_INFO("Torque bounds activated. Execute update matrices to load the new options.");
   }
 }
 
@@ -183,6 +222,7 @@ void ThorQP::updateMatrices()
   m_ce0.resize(0);
   quadraticControlIntervals(m_control_horizon_time,m_nc,m_dt,m_control_intervals,m_prediction_time);
   computeEvolutionMatrix(m_prediction_time,m_control_intervals,m_nax,m_free_response,m_forced_response);
+  computeJerkEvolutionMatrix(m_prediction_time,m_control_intervals,m_nax,m_jerk_free_response,m_jerk_forced_response);
   thor::math::splitResponses(m_free_response,m_velocity_free_resp,m_position_free_resp,m_forced_response,m_velocity_forced_resp,m_position_forced_resp,m_nax);
   m_lb.resize(m_nc*(m_nax+1));
   m_ub.resize(m_nc*(m_nax+1));
@@ -271,6 +311,32 @@ void ThorQP::updateMatrices()
 
     m_invariance_free_resp.rightCols(m_nax)+=m_velocity_free_resp;
   }
+
+  /*
+   * H u + b > -tau_max    ->  H*u+b+tau_max>0
+   * H u + b <  tau_max    -> -H*u-b+tau_max>0
+   * A^T =[H            -H          ]
+   *       nc*(nax+1)   nc*(nax+1)
+   *
+   *
+   */
+  if (m_are_torque_bounds_active)
+  {
+    m_CI.conservativeResize(m_nc*(m_nax+1),  10*m_nc*m_nax+2*m_nc);
+    m_CI.block(0,8*m_nc*m_nax+2*m_nc,m_nc*(m_nax+1),2*m_nc*m_nax).setZero();
+
+//    m_CI.block(0,8*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=m_position_forced_resp.transpose();
+//    m_CI.block(0,9*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=-m_position_forced_resp.transpose();
+
+    m_ci0.conservativeResize(10*m_nc*m_nax+2*m_nc);
+    m_ci0.tail(2*m_nc*m_nax).setZero();
+    for (unsigned int ic=0;ic<m_nc;ic++)
+    {
+      m_ci0.segment(8*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
+      m_ci0.segment(9*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
+    }
+  }
+
   m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
   m_next_position_free_resp=m_position_free_resp.topRows(m_nax);
   
@@ -327,8 +393,8 @@ void ThorQP::computeActualMatrices ( const Eigen::VectorXd& targetDq, const Eige
   m_f.head(m_nc*m_nax) -= m_lambda_clik* (m_next_position_forced_resp.transpose()*next_targetQ).col(0);
   
   m_f.tail(m_nc) -= DQT.transpose()*m_velocity_free_resp*x0.tail(m_nax);
-  
-  if (m_chain)
+
+  if (0)
   {
     for (unsigned int ic=0; ic<m_nc; ic++)
     {
@@ -342,6 +408,11 @@ void ThorQP::computeActualMatrices ( const Eigen::VectorXd& targetDq, const Eige
       m_f.block(ic*m_nax,0,m_nax,1)                     += m_lambda_tau * non_linear_part_torque.transpose()*inertia_matrix;
     }
   }
+
+  double lambda_jerk=1.0e-14;
+  m_H_variable.block(0,0,m_nax*m_nc,m_nax*m_nc) += lambda_jerk * m_jerk_forced_response.transpose()*m_jerk_forced_response;
+  m_f.segment(0,m_nax*m_nc)                   += lambda_jerk * ((m_jerk_free_response*(m_sol.head(m_nax))).transpose()*m_jerk_forced_response);
+
   m_H=m_H_fixed+m_H_variable;
   
 }
@@ -378,15 +449,27 @@ bool ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
                                           double& next_scaling )
 {
   computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
+
   Eigen::VectorXd ci0=m_ci0;
   ci0.segment(2*m_nc*(m_nax+1)           ,m_nax*m_nc)+=m_velocity_free_resp*x0.tail(m_nax); // vel lower bounds
   ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc,m_nax*m_nc)-=m_velocity_free_resp*x0.tail(m_nax); // vel upper bounds
+
   if (m_are_position_bounds_active)
   {
     ci0.segment(2*m_nc*(m_nax+1)+2*m_nax*m_nc,m_nax*m_nc)+=m_position_free_resp*x0; // pos lower bounds
     ci0.segment(2*m_nc*(m_nax+1)+3*m_nax*m_nc,m_nax*m_nc)-=m_position_free_resp*x0; // pos upper bounds
     ci0.segment(2*m_nc*(m_nax+1)+4*m_nax*m_nc,m_nax*m_nc)+=m_invariance_free_resp*x0; // invariance lower constraint
     ci0.segment(2*m_nc*(m_nax+1)+5*m_nax*m_nc,m_nax*m_nc)-=m_invariance_free_resp*x0; // invariance upper constraint
+  }
+  if  (m_are_torque_bounds_active)
+  {
+    for (unsigned int idx=0;idx<m_nc;idx++)
+    {
+      m_CI.block(idx*m_nc,8*m_nc*m_nax+2*m_nc,m_nax,m_nax)=m_chain->getJointInertia(m_prediction_pos.segment(idx*m_nax,m_nax)); // update torque constraints
+      Eigen::VectorXd torque_nonlinear_part=m_chain->getJointTorqueNonLinearPart(m_prediction_pos.segment(idx*m_nax,m_nax),m_prediction_vel.segment(idx*m_nax,m_nax));
+      ci0.segment(2*m_nc*(m_nax+1)+6*m_nax*m_nc+idx*m_nc,m_nax)+=torque_nonlinear_part; // torque lower bounds
+      ci0.segment(2*m_nc*(m_nax+1)+7*m_nax*m_nc+idx*m_nc,m_nax)-=torque_nonlinear_part; // torque upper bounds
+    }
   }
 
   Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );

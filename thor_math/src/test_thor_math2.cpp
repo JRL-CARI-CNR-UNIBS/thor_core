@@ -49,7 +49,7 @@ int main(int argc, char **argv){
   qmin.setConstant(-10);
   Dqmax.setConstant(2);
   DDqmax.setConstant(5);
-  tau_max.setConstant(10);
+  tau_max.setConstant(100);
   
     
   ROS_INFO_NAMED(nh.getNamespace(),"CREATING THOR");
@@ -59,6 +59,7 @@ int main(int argc, char **argv){
   thor.setIntervals(nc,nax,control_horizon,st);
   thor.setWeigthFunction(lambda_acc,lambda_tau,lambda_scaling,lambda_clik);
   thor.setConstraints(qmax,qmin,Dqmax,DDqmax,tau_max);
+  thor.activateTorqueBounds(true);
   if (thor.needUpdate())
   {
     ROS_INFO_NAMED(nh.getNamespace(),"UPDATING THOR MATRICES");

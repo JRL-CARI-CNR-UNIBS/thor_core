@@ -33,7 +33,7 @@ int main(int argc, char **argv){
   ros::init(argc, argv, "test_thor_math");
   ros::NodeHandle nh;
   
-  unsigned nax=6;
+  unsigned nax=7;
   unsigned int nc=5;
   double control_horizon=1;
   double st=0.008;
@@ -51,18 +51,27 @@ int main(int argc, char **argv){
   
   qmax.setConstant(10);
   qmin.setConstant(-10);
-  Dqmax.setConstant(0.5);
-  DDqmax.setConstant(0.5);
-  tau_max.setConstant(10);
-  
+  Dqmax.setConstant(1);
+  DDqmax.setConstant(3);
+  tau_max.setConstant(100);
+
+  urdf::Model model;
+  model.initParam("robot_description");
+  Eigen::Vector3d grav;
+  grav << 0, 0, -9.806;
+  std::string base_frame = "world";
+  std::string tool_frame = "ur5_32_ee_link";
+  boost::shared_ptr<rosdyn::Chain> chain = rosdyn::createChain(model,base_frame,tool_frame,grav);
     
   ROS_INFO_NAMED(nh.getNamespace(),"CREATING THOR");
   thor::math::ThorQP thor;
+  thor.setDynamicsChain(chain);
   
   ROS_INFO_NAMED(nh.getNamespace(),"SETTING THOR MATRICES");
   thor.setIntervals(nc,nax,control_horizon,st);
   thor.setWeigthFunction(lambda_acc,lambda_tau,lambda_scaling,lambda_clik);
   thor.setConstraints(qmax,qmin,Dqmax,DDqmax,tau_max);
+  thor.activateTorqueBounds(true);
   if (thor.needUpdate())
   {
     ROS_INFO_NAMED(nh.getNamespace(),"UPDATING THOR MATRICES");
@@ -71,8 +80,8 @@ int main(int argc, char **argv){
   Eigen::VectorXd prediction_time = thor.getPredictionTimeInstant();
   Eigen::VectorXd initial_state(2*nax);
   initial_state.setZero();
-  initial_state (1)=-1.5708;
-  initial_state (3)=-1.5708;
+  initial_state (2)=-1.5708;
+  initial_state (4)=-1.5708;
   
   thor.setInitialState( initial_state );
   
@@ -105,13 +114,13 @@ int main(int argc, char **argv){
   msg.velocity.resize(nax);
   msg.effort.resize(nax);
   msg.name.resize(nax);
-  
-  msg.name.at(0)="shoulder_pan_joint";
-  msg.name.at(1)="shoulder_lift_joint";
-  msg.name.at(2)="elbow_joint";
-  msg.name.at(3)="wrist_1_joint";
-  msg.name.at(4)="wrist_2_joint";
-  msg.name.at(5)="wrist_3_joint";
+  msg.name.at(0)="linear_motor_cursor_joint";
+  msg.name.at(1)="ur5_shoulder_pan_joint";
+  msg.name.at(2)="ur5_shoulder_lift_joint";
+  msg.name.at(3)="ur5_elbow_joint";
+  msg.name.at(4)="ur5_wrist_1_joint";
+  msg.name.at(5)="ur5_wrist_2_joint";
+  msg.name.at(6)="ur5_wrist_3_joint";
   
   sensor_msgs::JointState tmsg;
   tmsg.position.resize(nax);
@@ -124,7 +133,6 @@ int main(int argc, char **argv){
   double max_t_calc=0;
   double mean_t_calc=0;
   unsigned int iter=0;
-  
   
   while (ros::ok())
   {

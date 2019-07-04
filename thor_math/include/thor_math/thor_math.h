@@ -19,6 +19,12 @@ bool computeEvolutionMatrix( const Eigen::Ref<Eigen::VectorXd> prediction_time,
                              Eigen::MatrixXd& forced_response
                             );
 
+bool computeJerkEvolutionMatrix ( const Eigen::Ref< Eigen::VectorXd > prediction_time,
+                                  const Eigen::Ref< Eigen::VectorXd > control_intervals,
+                                  const unsigned int& nax,
+                                  Eigen::MatrixXd& free_response,
+                                  Eigen::MatrixXd& forced_response );
+
 Eigen::MatrixXd freeResponse(const double& t, const unsigned int& nax);
 Eigen::MatrixXd forcedResponse(const double& t, const unsigned int& nax);
 
@@ -65,6 +71,7 @@ protected:
   Eigen::VectorXd m_tau_max;
 
   bool m_are_position_bounds_active;
+  bool m_are_torque_bounds_active;
   
   Eigen::VectorXd m_prediction_pos;
   Eigen::VectorXd m_prediction_vel;
@@ -81,6 +88,9 @@ protected:
   Eigen::MatrixXd m_velocity_forced_resp;
   Eigen::MatrixXd m_do_scaling; // applying the scaling to trajectory
   Eigen::MatrixXd m_invariance_free_resp;
+
+  Eigen::MatrixXd m_jerk_free_response;
+  Eigen::MatrixXd m_jerk_forced_response;
 
   Eigen::JacobiSVD<Eigen::MatrixXd>  m_svd;
   
@@ -113,6 +123,8 @@ public:
                  const Eigen::VectorXd& tau_max);
 
   void activatePositionBounds(const bool enable_pos_bounds);
+
+  void activateTorqueBounds(const bool enable_tau_bounds);
 
   bool arePositionBoundsActive();
   
