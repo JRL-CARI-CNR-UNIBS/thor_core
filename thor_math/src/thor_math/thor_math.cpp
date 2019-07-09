@@ -207,10 +207,11 @@ void ThorQP::setIntervals ( const unsigned int& num_of_intervals,
   
 }
 
-void ThorQP::setWeigthFunction ( const double& lambda_acc, const double& lambda_tau, const double& lambda_scaling, const double& lambda_clik )
+void ThorQP::setWeigthFunction ( const double& lambda_acc, const double& lambda_tau, const double& lambda_jerk, const double& lambda_scaling, const double& lambda_clik )
 {
   m_lambda_acc=lambda_acc;
   m_lambda_tau=lambda_tau;
+  m_lambda_jerk=lambda_jerk;
   m_lambda_scaling=lambda_scaling;
   m_lambda_clik=lambda_clik;
   m_are_matrices_updated=false;
@@ -409,9 +410,8 @@ void ThorQP::computeActualMatrices ( const Eigen::VectorXd& targetDq, const Eige
     }
   }
 
-  double lambda_jerk=1.0e-14;
-  m_H_variable.block(0,0,m_nax*m_nc,m_nax*m_nc) += lambda_jerk * m_jerk_forced_response.transpose()*m_jerk_forced_response;
-  m_f.segment(0,m_nax*m_nc)                   += lambda_jerk * ((m_jerk_free_response*(m_sol.head(m_nax))).transpose()*m_jerk_forced_response);
+  m_H_variable.block(0,0,m_nax*m_nc,m_nax*m_nc) += m_lambda_jerk * m_jerk_forced_response.transpose()*m_jerk_forced_response;
+  m_f.segment(0,m_nax*m_nc)                     += m_lambda_jerk * ((m_jerk_free_response*(m_sol.head(m_nax))).transpose()*m_jerk_forced_response);
 
   m_H=m_H_fixed+m_H_variable;
   

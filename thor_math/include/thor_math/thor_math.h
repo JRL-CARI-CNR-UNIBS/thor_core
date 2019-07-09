@@ -4,7 +4,7 @@
 
 #include "Eigen/Dense"
 #include <ros/console.h>
-#include <eigen_matrix_utils/eiquadprog.hpp>
+#include <thor_math/eiquadprog.hpp>
 #include <rosdyn_core/primitives.h>
 
 namespace thor 
@@ -103,6 +103,8 @@ protected:
   double m_lambda_tau;
   double m_lambda_scaling;
   double m_lambda_clik;
+  double m_lambda_jerk;
+
   Eigen::VectorXd m_state;
   
   boost::shared_ptr<rosdyn::Chain>  m_chain;
@@ -133,7 +135,7 @@ public:
                     const double& control_horizon_time,
                     const double& computing_period);
   
-  void setWeigthFunction( const double& lambda_acc, const double& lambda_tau, const double& lambda_scaling, const double& lambda_clik );
+  void setWeigthFunction( const double& lambda_acc, const double& lambda_tau, const double& lambda_jerk, const double& lambda_scaling, const double& lambda_clik );
   
   bool needUpdate(){return !m_are_matrices_updated;};
   
