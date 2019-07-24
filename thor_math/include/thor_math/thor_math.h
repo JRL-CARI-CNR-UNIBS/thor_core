@@ -4,7 +4,7 @@
 
 #include "Eigen/Dense"
 #include <ros/console.h>
-#include <thor_math/eiquadprog.hpp>
+//#include <thor_math/eiquadprog.hpp>
 #include <rosdyn_core/primitives.h>
 
 namespace thor 

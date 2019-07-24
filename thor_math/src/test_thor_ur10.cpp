@@ -69,7 +69,7 @@ int main(int argc, char **argv){
   
   ROS_INFO_NAMED(nh.getNamespace(),"SETTING THOR MATRICES");
   thor.setIntervals(nc,nax,control_horizon,st);
-  thor.setWeigthFunction(lambda_acc,lambda_tau,lambda_scaling,lambda_clik);
+  thor.setWeigthFunction(lambda_acc,lambda_tau,0.0,lambda_scaling,lambda_clik);
   thor.setConstraints(qmax,qmin,Dqmax,DDqmax,tau_max);
   thor.activateTorqueBounds(true);
   if (thor.needUpdate())
