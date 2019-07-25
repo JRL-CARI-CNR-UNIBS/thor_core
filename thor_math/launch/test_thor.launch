@@ -1,4 +1,4 @@
 <launch>
-<node name="thor_math2" pkg="thor_math" type="test_thor_math2"  launch-prefix="nice -n -19" output="screen">
+<node name="thor_math2" pkg="thor_math" type="test_thor_ur10"  launch-prefix="nice -n -19" output="screen">
 </node>
 </launch>

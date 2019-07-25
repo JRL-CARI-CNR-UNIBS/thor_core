@@ -4,7 +4,7 @@
 
 #include "Eigen/Dense"
 #include <ros/console.h>
-#include <thor_math/eiquadprog.hpp>
+//#include <thor_math/eiquadprog.hpp>
 #include <rosdyn_core/primitives.h>
 
 namespace thor 
@@ -18,6 +18,12 @@ bool computeEvolutionMatrix( const Eigen::Ref<Eigen::VectorXd> prediction_time,
                              Eigen::MatrixXd& free_response,
                              Eigen::MatrixXd& forced_response
                             );
+
+bool computeJerkEvolutionMatrix ( const Eigen::Ref< Eigen::VectorXd > prediction_time,
+                                  const Eigen::Ref< Eigen::VectorXd > control_intervals,
+                                  const unsigned int& nax,
+                                  Eigen::MatrixXd& free_response,
+                                  Eigen::MatrixXd& forced_response );
 
 Eigen::MatrixXd freeResponse(const double& t, const unsigned int& nax);
 Eigen::MatrixXd forcedResponse(const double& t, const unsigned int& nax);
@@ -65,6 +71,7 @@ protected:
   Eigen::VectorXd m_tau_max;
 
   bool m_are_position_bounds_active;
+  bool m_are_torque_bounds_active;
   
   Eigen::VectorXd m_prediction_pos;
   Eigen::VectorXd m_prediction_vel;
@@ -82,6 +89,9 @@ protected:
   Eigen::MatrixXd m_do_scaling; // applying the scaling to trajectory
   Eigen::MatrixXd m_invariance_free_resp;
 
+  Eigen::MatrixXd m_jerk_free_response;
+  Eigen::MatrixXd m_jerk_forced_response;
+
   Eigen::JacobiSVD<Eigen::MatrixXd>  m_svd;
   
   unsigned int m_nc; //number of control and prediction intervals
@@ -93,6 +103,8 @@ protected:
   double m_lambda_tau;
   double m_lambda_scaling;
   double m_lambda_clik;
+  double m_lambda_jerk;
+
   Eigen::VectorXd m_state;
   
   boost::shared_ptr<rosdyn::Chain>  m_chain;
@@ -114,6 +126,8 @@ public:
 
   void activatePositionBounds(const bool enable_pos_bounds);
 
+  void activateTorqueBounds(const bool enable_tau_bounds);
+
   bool arePositionBoundsActive();
   
   void setIntervals(const unsigned int& num_of_intervals,
@@ -121,7 +135,7 @@ public:
                     const double& control_horizon_time,
                     const double& computing_period);
   
-  void setWeigthFunction( const double& lambda_acc, const double& lambda_tau, const double& lambda_scaling, const double& lambda_clik );
+  void setWeigthFunction( const double& lambda_acc, const double& lambda_tau, const double& lambda_jerk, const double& lambda_scaling, const double& lambda_clik );
   
   bool needUpdate(){return !m_are_matrices_updated;};
   

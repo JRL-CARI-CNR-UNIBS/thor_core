@@ -38,6 +38,7 @@ int main(int argc, char **argv){
   double lambda_tau=0;
   double lambda_scaling=1e-1;
   double lambda_clik=1e-2;
+  double lamda_jerk=1e-12;
   
   Eigen::VectorXd qmax(nax);
   Eigen::VectorXd qmin(nax);
@@ -49,7 +50,7 @@ int main(int argc, char **argv){
   qmin.setConstant(-10);
   Dqmax.setConstant(2);
   DDqmax.setConstant(5);
-  tau_max.setConstant(10);
+  tau_max.setConstant(100);
   
     
   ROS_INFO_NAMED(nh.getNamespace(),"CREATING THOR");
@@ -57,8 +58,9 @@ int main(int argc, char **argv){
   
   ROS_INFO_NAMED(nh.getNamespace(),"SETTING THOR MATRICES");
   thor.setIntervals(nc,nax,control_horizon,st);
-  thor.setWeigthFunction(lambda_acc,lambda_tau,lambda_scaling,lambda_clik);
+  thor.setWeigthFunction(lambda_acc,lambda_tau,lamda_jerk,lambda_scaling,lambda_clik);
   thor.setConstraints(qmax,qmin,Dqmax,DDqmax,tau_max);
+  thor.activateTorqueBounds(true);
   if (thor.needUpdate())
   {
     ROS_INFO_NAMED(nh.getNamespace(),"UPDATING THOR MATRICES");
