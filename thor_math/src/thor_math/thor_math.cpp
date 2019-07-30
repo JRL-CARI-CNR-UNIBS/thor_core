@@ -449,7 +449,6 @@ bool ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
                                           double& next_scaling )
 {
   computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
-
   Eigen::VectorXd ci0=m_ci0;
   ci0.segment(2*m_nc*(m_nax+1)           ,m_nax*m_nc)+=m_velocity_free_resp*x0.tail(m_nax); // vel lower bounds
   ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc,m_nax*m_nc)-=m_velocity_free_resp*x0.tail(m_nax); // vel upper bounds
@@ -471,14 +470,11 @@ bool ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
       ci0.segment(2*m_nc*(m_nax+1)+7*m_nax*m_nc+idx*m_nc,m_nax)-=torque_nonlinear_part; // torque upper bounds
     }
   }
-
   Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
   next_acc=m_sol.head(m_nax);
   next_scaling=m_sol (m_nax*m_nc);
-  
   m_prediction_vel = m_velocity_forced_resp*m_sol.head(m_nc*m_nax)+m_velocity_free_resp*x0.tail(m_nax);
   m_prediction_pos = m_position_forced_resp*m_sol.head(m_nc*m_nax)+m_position_free_resp*x0;
-  
   
   return true;
 }
