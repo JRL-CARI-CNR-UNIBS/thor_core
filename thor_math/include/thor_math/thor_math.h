@@ -39,10 +39,15 @@ void splitResponses( const Eigen::MatrixXd& free_response,
 
 bool quadraticControlIntervals( const double& control_horizon_time, const unsigned int& n_control, const double& first_interval, Eigen::VectorXd& control_intervals, Eigen::VectorXd& prediction_time );
 
+bool constantControlIntervals ( const double& control_horizon_time, const unsigned int& n_control, const double& sampling_period, Eigen::VectorXd& control_intervals, Eigen::VectorXd& prediction_time );
+
+
 class ThorQP
 {
 protected:
   bool m_are_matrices_updated;
+
+  bool m_use_input_blocking;
   
   Eigen::MatrixXd m_weigth_matrix;
   Eigen::MatrixXd m_H_fixed;
@@ -134,11 +139,17 @@ public:
                     const unsigned int& num_of_joints,
                     const double& control_horizon_time,
                     const double& computing_period);
-  
+
+  void setIntervals ( const unsigned int& num_of_intervals,
+                    const unsigned int& num_of_joints,
+                    const double& control_horizon_time,
+                    const double& computing_period,
+                    const bool & use_input_blocking);
+
   void setWeigthFunction( const double& lambda_acc, const double& lambda_tau, const double& lambda_jerk, const double& lambda_scaling, const double& lambda_clik );
   
   bool needUpdate(){return !m_are_matrices_updated;};
-  
+
   virtual void updateMatrices();
   
   virtual bool computedUncostrainedSolution(  const Eigen::VectorXd& targetDq,

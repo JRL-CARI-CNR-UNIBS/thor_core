@@ -120,6 +120,26 @@ bool quadraticControlIntervals ( const double& control_horizon_time, const unsig
   return true;
 }
 
+bool constantControlIntervals ( const double& control_horizon_time, const unsigned int& n_control, const double& sampling_period, Eigen::VectorXd& control_intervals, Eigen::VectorXd& prediction_time )
+{
+  assert(control_horizon_time>0);
+  assert(n_control>0);
+
+  double step_size=sampling_period*std::round(control_horizon_time/n_control/sampling_period);
+
+  prediction_time.resize(n_control);
+  control_intervals.resize(n_control);
+  for (unsigned int ic=0;ic<n_control;ic++)
+  {
+    prediction_time(ic)=step_size*(ic+1);
+    if (ic==0)
+      control_intervals(ic)=prediction_time(ic);
+    else
+      control_intervals(ic)=prediction_time(ic)-prediction_time(ic-1);
+  }
+  return true;
+}
+
 void splitResponses ( const Eigen::MatrixXd& free_response, 
                       Eigen::MatrixXd& velocity_free_response, 
                       Eigen::MatrixXd& position_free_response, 
@@ -201,10 +221,35 @@ void ThorQP::setIntervals ( const unsigned int& num_of_intervals,
   m_nc=num_of_intervals;
   
   m_are_matrices_updated=false;
+
+  m_use_input_blocking=true;
   
   m_sol.resize( (m_nax+1)*m_nc);
   m_sol.setZero();
   
+}
+
+void ThorQP::setIntervals ( const unsigned int& num_of_intervals,
+                            const unsigned int& num_of_joints,
+                            const double& control_horizon_time,
+                            const double& computing_period,
+                            const bool & use_input_blocking)
+{
+  m_dt=computing_period;
+  m_control_horizon_time=control_horizon_time;
+  m_nax=num_of_joints;
+  m_nc=num_of_intervals;
+
+  m_are_matrices_updated=false;
+
+  if (use_input_blocking)
+    m_use_input_blocking=true;
+  else
+    m_use_input_blocking=false;
+
+  m_sol.resize( (m_nax+1)*m_nc);
+  m_sol.setZero();
+
 }
 
 void ThorQP::setWeigthFunction ( const double& lambda_acc, const double& lambda_tau, const double& lambda_jerk, const double& lambda_scaling, const double& lambda_clik )
@@ -221,7 +266,10 @@ void ThorQP::updateMatrices()
 {
   m_CE.resize((m_nax+1)*m_nc,0);
   m_ce0.resize(0);
-  quadraticControlIntervals(m_control_horizon_time,m_nc,m_dt,m_control_intervals,m_prediction_time);
+  if (m_use_input_blocking)
+    quadraticControlIntervals(m_control_horizon_time,m_nc,m_dt,m_control_intervals,m_prediction_time);
+  else
+    constantControlIntervals(m_control_horizon_time,m_nc,m_dt,m_control_intervals,m_prediction_time);
   computeEvolutionMatrix(m_prediction_time,m_control_intervals,m_nax,m_free_response,m_forced_response);
   computeJerkEvolutionMatrix(m_prediction_time,m_control_intervals,m_nax,m_jerk_free_response,m_jerk_forced_response);
   thor::math::splitResponses(m_free_response,m_velocity_free_resp,m_position_free_resp,m_forced_response,m_velocity_forced_resp,m_position_forced_resp,m_nax);
