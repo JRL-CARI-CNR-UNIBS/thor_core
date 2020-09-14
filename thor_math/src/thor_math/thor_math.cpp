@@ -543,7 +543,7 @@ bool ThorQP::computedUncostrainedSolution ( const Eigen::VectorXd& targetDq,
   return true;
 }
 
-void ThorQP::setDynamicsChain(const boost::shared_ptr< rosdyn::Chain >& chain)
+void ThorQP::setDynamicsChain(const rosdyn::ChainPtr& chain)
 {
   m_chain=chain;
 }

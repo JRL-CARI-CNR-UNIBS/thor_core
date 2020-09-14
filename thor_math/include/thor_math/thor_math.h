@@ -112,7 +112,7 @@ protected:
 
   Eigen::VectorXd m_state;
   
-  boost::shared_ptr<rosdyn::Chain>  m_chain;
+  rosdyn::ChainPtr  m_chain;
   
   virtual void computeActualMatrices( const Eigen::VectorXd& targetDq,
                               const Eigen::VectorXd& next_targetQ,
@@ -173,7 +173,7 @@ public:
   Eigen::VectorXd getPredictionTimeInstant(){return m_prediction_time;};
   
   
-  void setDynamicsChain(const boost::shared_ptr<rosdyn::Chain>&  chain);
+  void setDynamicsChain(const rosdyn::ChainPtr& chain);
 };
 
 }
