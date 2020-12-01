@@ -6,8 +6,6 @@ namespace thor
 
 ThorPrefilter::ThorPrefilter()
 {
-
-
   m_order=1;
 }
 
@@ -18,7 +16,6 @@ void ThorPrefilter::setSplineOrder(const unsigned int& order)
   else
     ROS_WARN("Interpolation order should be less or equal to 4");
 }
-
 
 bool ThorPrefilter::setTrajectory(const trajectory_msgs::JointTrajectoryPtr& trj)
 {
@@ -71,7 +68,7 @@ bool ThorPrefilter::interpolate(const ros::Duration& time, trajectory_msgs::Join
       double ratio=t/delta_time;
       for (unsigned int iAx=0;iAx<nAx;iAx++)
       {
-        //spline
+        //spline order
         if (m_order==0)
         {
           pnt.positions.at(iAx)=m_trj->points.at(iPnt-1).positions.at(iAx)+ratio*(m_trj->points.at(iPnt).positions.at(iAx)-m_trj->points.at(iPnt-1).positions.at(iAx));
@@ -92,7 +89,6 @@ bool ThorPrefilter::interpolate(const ros::Duration& time, trajectory_msgs::Join
           pnt.positions.at(iAx)     = c1+c2*t+c3*(t*t)+c4*(t*t*t);
           pnt.velocities.at(iAx)    = c2+c3*t*2.0+c4*(t*t)*3.0;
           pnt.accelerations.at(iAx) = c3*2.0+c4*t*6.0;
-          
         }
         else if (m_order==2)
         {
@@ -123,7 +119,8 @@ bool ThorPrefilter::interpolate(const ros::Duration& time, trajectory_msgs::Join
           double& pf_1=m_trj->points.at(iPnt).positions.at(iAx);
           double& pf_2=m_trj->points.at(iPnt).velocities.at(iAx);
           double& pf_3=m_trj->points.at(iPnt).accelerations.at(iAx);
-          
+          // initial and final jerks set equal to zero
+
           double c1 = p0_1;
           double c2 = p0_2;
           double c3 = p0_3*(1.0/2.0);
@@ -146,7 +143,8 @@ bool ThorPrefilter::interpolate(const ros::Duration& time, trajectory_msgs::Join
           double& pf_1=m_trj->points.at(iPnt).positions.at(iAx);
           double& pf_2=m_trj->points.at(iPnt).velocities.at(iAx);
           double& pf_3=m_trj->points.at(iPnt).accelerations.at(iAx);
-          
+          // initial and final jerks and snaps set equal to zero
+
           double c1 = p0_1;
           double c2 = p0_2;
           double c3 = p0_3*(1.0/2.0);
