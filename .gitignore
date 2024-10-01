@@ -1,6 +1,13 @@
 *~
+
+
+# File generato da KDevelop
 *.kdev4
-*.user
-*.user*
 *.swp
 kdev4/
+build/
+
+# File generato da QtCreator
+*.txt.user
+*.user
+*.user*
