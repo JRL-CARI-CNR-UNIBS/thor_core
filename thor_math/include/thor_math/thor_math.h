@@ -3,9 +3,8 @@
 
 
 #include "Eigen/Dense"
-#include <ros/console.h>
 //#include <thor_math/eiquadprog.hpp>
-#include <rosdyn_core/primitives.h>
+#include <rdyn_core/primitives.h>
 
 namespace thor 
 {
@@ -112,7 +111,7 @@ protected:
 
   Eigen::VectorXd m_state;
   
-  rosdyn::ChainPtr  m_chain;
+  rdyn::ChainPtr  m_chain;
   
   virtual void computeActualMatrices( const Eigen::VectorXd& targetDq,
                               const Eigen::VectorXd& next_targetQ,
@@ -173,7 +172,7 @@ public:
   Eigen::VectorXd getPredictionTimeInstant(){return m_prediction_time;};
   
   
-  void setDynamicsChain(const rosdyn::ChainPtr& chain);
+  void setDynamicsChain(const rdyn::ChainPtr& chain);
 };
 
 }

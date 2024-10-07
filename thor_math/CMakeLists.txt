@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(thor_math)
-find_package(cnr_logger REQUIRED)
 
 find_package(Eigen3 REQUIRED)
+find_package(rdyn_core REQUIRED)
 
 
-add_library(${PROJECT_NAME}
+add_library(${PROJECT_NAME} SHARED
   src/${PROJECT_NAME}/thor_math.cpp
   )
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -14,8 +14,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   )
 target_compile_options(${PROJECT_NAME} PUBLIC -std=c++20 -funroll-loops -Wall -Ofast)
 
-target_link_libraries(${PROJECT_NAME} PUBLIC
+target_link_libraries(${PROJECT_NAME}  PUBLIC
   Eigen3::Eigen
+  rdyn_core::rdyn_core
   )
 add_library("${PROJECT_NAME}::${PROJECT_NAME}" ALIAS ${PROJECT_NAME})
 
@@ -28,12 +29,17 @@ add_library("${PROJECT_NAME}::${PROJECT_NAME}" ALIAS ${PROJECT_NAME})
 #  )
 
 
-add_executable(test_thor_math src/test_thor_math.cpp)
-target_link_libraries(test_thor_math
+#add_executable(test_thor_math src/test_thor_math.cpp)
+#target_link_libraries(test_thor_math
+#  PUBLIC
+#  "${PROJECT_NAME}::${PROJECT_NAME}"
+#  )
+
+add_executable(test_thor_math2 src/test_thor_math2.cpp)
+target_link_libraries(test_thor_math2
   PUBLIC
   "${PROJECT_NAME}::${PROJECT_NAME}"
   )
-
 #add_executable(test_thor_math2 src/test_thor_math2.cpp)
 #add_dependencies(test_thor_math2 ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 #target_link_libraries(test_thor_math2

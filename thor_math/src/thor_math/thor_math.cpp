@@ -191,7 +191,7 @@ void ThorQP::activatePositionBounds(const bool enable_pos_bounds)
   {
     m_are_position_bounds_active=enable_pos_bounds;
     m_are_matrices_updated=false;
-    ROS_INFO("Position bounds activated. Execute update matrices to load the new options.");
+//    ROS_INFO("Position bounds activated. Execute update matrices to load the new options.");
   }
 }
 
@@ -201,7 +201,7 @@ void ThorQP::activateTorqueBounds(const bool enable_tau_bounds)
   {
     m_are_torque_bounds_active=enable_tau_bounds;
     m_are_matrices_updated=false;
-    ROS_INFO("Torque bounds activated. Execute update matrices to load the new options.");
+//    ROS_INFO("Torque bounds activated. Execute update matrices to load the new options.");
   }
 }
 
@@ -543,7 +543,7 @@ bool ThorQP::computedUncostrainedSolution ( const Eigen::VectorXd& targetDq,
   return true;
 }
 
-void ThorQP::setDynamicsChain(const rosdyn::ChainPtr& chain)
+void ThorQP::setDynamicsChain(const rdyn::ChainPtr& chain)
 {
   m_chain=chain;
 }

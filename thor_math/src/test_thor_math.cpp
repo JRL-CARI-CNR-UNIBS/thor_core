@@ -1,7 +1,4 @@
 #include <thor_math/thor_math.h>
-#include <ros/ros.h>
-#include <sensor_msgs/JointState.h>
-#include <std_msgs/Float64.h>
 
 void sinWave(const double& t, const double& scaling, double& pos, double& vel, double& acc)
 {
@@ -14,8 +11,6 @@ void sinWave(const double& t, const double& scaling, double& pos, double& vel, d
 }
 
 int main(int argc, char **argv){
-  ros::init(argc, argv, "test_thor_math");
-  ros::NodeHandle nh;
   
   unsigned nax=6;
   unsigned int nc=2;
