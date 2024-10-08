@@ -118,8 +118,12 @@ int main(int argc, char **argv){
 //     ROS_INFO("Step %d",i);
 //    ros::Time t0=ros::Time::now();
 //     thor.computedUncostrainedSolution(target_Dq,next_Q,target_scaling,thor.getState(),next_acc,scaling);
+
+    std::cout << __LINE__ << " ... " << std::endl;
+    printf("aaa\n");
     thor.computedCostrainedSolution(target_Dq,next_Q,target_scaling,thor.getState(),next_acc,scaling);
 //    double tcalc=(ros::Time::now()-t0).toSec();
+    std::cout << __LINE__ << " ... " << std::endl;
     thor.updateState(next_acc);
 
 //    for (unsigned int iax=0;iax<nax;iax++)
