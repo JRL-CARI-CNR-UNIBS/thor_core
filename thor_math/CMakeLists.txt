@@ -19,7 +19,9 @@ target_link_libraries(${PROJECT_NAME}  PUBLIC
 if(CMAKE_COMPILER_IS_GNUCXX)
   include(CheckCXXCompilerFlag)
 
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "9.0")
+  message("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO ${CMAKE_CXX_COMPILER_VERSION}")
+
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "10.0")
     target_compile_options(${PROJECT_NAME} PUBLIC -std=c++20 -funroll-loops -Ofast)
   else()
     target_compile_options(${PROJECT_NAME} PUBLIC -std=c++2a -funroll-loops -Ofast)
