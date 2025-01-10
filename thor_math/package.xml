@@ -17,6 +17,7 @@
 
 
   <buildtool_depend>cmake</buildtool_depend>
+  <depend>rdyn_core</depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

@@ -16,7 +16,16 @@ target_link_libraries(${PROJECT_NAME}  PUBLIC
   rdyn_core::rdyn_core
 )
 
-target_compile_options(${PROJECT_NAME} PUBLIC -std=c++20 -funroll-loops -Ofast)
+if(CMAKE_COMPILER_IS_GNUCXX)
+  include(CheckCXXCompilerFlag)
+
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "9.0")
+    target_compile_options(${PROJECT_NAME} PUBLIC -std=c++20 -funroll-loops -Ofast)
+  else()
+    target_compile_options(${PROJECT_NAME} PUBLIC -std=c++2a -funroll-loops -Ofast)
+  endif()
+endif()
+
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
