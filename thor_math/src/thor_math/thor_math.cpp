@@ -277,6 +277,7 @@ void ThorQP::updateMatrices()
   m_ub.resize(m_nc*(m_nax+1));
   for (unsigned int ic=0;ic<m_nc;ic++)
   {
+    //std::cout << "DDqMAX= "<<m_DDqmax << std::endl;
     m_lb.segment(ic*m_nax,m_nax) = -m_DDqmax;
     m_ub.segment(ic*m_nax,m_nax) =  m_DDqmax;
   }
@@ -433,12 +434,12 @@ void ThorQP::updateMatrices()
 void ThorQP::computeActualMatrices ( const Eigen::VectorXd& targetDq, const Eigen::VectorXd& next_targetQ, const double& target_scaling, const Eigen::VectorXd& x0 )
 {
   Eigen::MatrixXd DQT=targetDq.asDiagonal()*m_do_scaling;
-  
   m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc)=-m_velocity_forced_resp.transpose()*DQT;
   m_H_variable.block(m_nax*m_nc,0,m_nc,m_nax*m_nc)=m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc).transpose();
   m_H_variable.block(m_nax*m_nc,m_nax*m_nc,m_nc,m_nc)=DQT.transpose()*DQT;
-  
+  std::cout << "x0: "<<x0 << std::endl;
   m_f = m_f_vel*x0.tail(m_nax)+m_f_pos*x0+m_f_scaling*target_scaling;
+  std::cout << "4" << std::endl;
   m_f.head(m_nc*m_nax) -= m_lambda_clik* (m_next_position_forced_resp.transpose()*next_targetQ).col(0);
   
   m_f.tail(m_nc) -= DQT.transpose()*m_velocity_free_resp*x0.tail(m_nax);

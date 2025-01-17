@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16.3)
 project(thor_math)
 
+set(CMAKE_BUILD_TYPE "Debug")
 # Dependencies
 find_package(Eigen3 REQUIRED  COMPONENTS Core Dense Geometry)
 find_package(rdyn_core REQUIRED)
