@@ -117,6 +117,10 @@ bool quadraticControlIntervals ( const double& control_horizon_time, const unsig
     else
       control_intervals(ic)=prediction_time(ic)-prediction_time(ic-1);
   }
+  for (unsigned int ic=0; ic<n_control; ic++)
+  {
+    // std::printf("control_intervals[%u]: %f, prediction_time[%u]: %f\n", ic, control_intervals(ic),ic, prediction_time(ic));
+  }
   return true;
 }
 
@@ -246,7 +250,7 @@ void ThorQP::setIntervals ( const unsigned int& num_of_intervals,
     m_use_input_blocking=true;
   else
     m_use_input_blocking=false;
-
+  
   m_sol.resize( (m_nax+1)*m_nc);
   m_sol.setZero();
 
@@ -281,8 +285,9 @@ void ThorQP::updateMatrices()
     m_lb.segment(ic*m_nax,m_nax) = -m_DDqmax;
     m_ub.segment(ic*m_nax,m_nax) =  m_DDqmax;
   }
-  m_lb.tail(m_nc).setConstant(0.05);
-  m_ub.tail(m_nc).setConstant(1.01);
+  // scaling bounds
+  m_lb.tail(m_nc).setConstant(m_min_scaling);
+  m_ub.tail(m_nc).setConstant(m_max_scaling);
 
   /*
    * I u > lb    ->  I*u+lb>0
@@ -434,36 +439,51 @@ void ThorQP::updateMatrices()
 void ThorQP::computeActualMatrices ( const Eigen::VectorXd& targetDq, const Eigen::VectorXd& next_targetQ, const double& target_scaling, const Eigen::VectorXd& x0 )
 {
   Eigen::MatrixXd DQT=targetDq.asDiagonal()*m_do_scaling;
+  // std::cout << "1" << std::endl;
+
   m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc)=-m_velocity_forced_resp.transpose()*DQT;
   m_H_variable.block(m_nax*m_nc,0,m_nc,m_nax*m_nc)=m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc).transpose();
   m_H_variable.block(m_nax*m_nc,m_nax*m_nc,m_nc,m_nc)=DQT.transpose()*DQT;
-  std::cout << "x0: "<<x0 << std::endl;
+  // std::cout << "x0: "<<x0 << std::endl;
   m_f = m_f_vel*x0.tail(m_nax)+m_f_pos*x0+m_f_scaling*target_scaling;
-  std::cout << "4" << std::endl;
+  // std::cout << "2" << std::endl;
   m_f.head(m_nc*m_nax) -= m_lambda_clik* (m_next_position_forced_resp.transpose()*next_targetQ).col(0);
-  
+  // std::cout << "3" << std::endl;
+
   m_f.tail(m_nc) -= DQT.transpose()*m_velocity_free_resp*x0.tail(m_nax);
+  // std::cout << "4" << std::endl;
 
-  if (0)
-  {
-    for (unsigned int ic=0; ic<m_nc; ic++)
-    {
-      Eigen::VectorXd qc  = m_prediction_pos.block(ic*m_nax,0,m_nax,1);
-      Eigen::VectorXd Dqc = m_prediction_vel.block(ic*m_nax,0,m_nax,1);
+  // if (0)
+  // {
+  //   for (unsigned int ic=0; ic<m_nc; ic++)
+  //   {
+  //     Eigen::VectorXd qc  = m_prediction_pos.block(ic*m_nax,0,m_nax,1);
+  //     Eigen::VectorXd Dqc = m_prediction_vel.block(ic*m_nax,0,m_nax,1);
       
-      Eigen::VectorXd non_linear_part_torque=m_chain->getJointTorqueNonLinearPart(qc,Dqc);
-      Eigen::MatrixXd inertia_matrix = m_chain->getJointInertia(qc);
+  //     Eigen::VectorXd non_linear_part_torque=m_chain->getJointTorqueNonLinearPart(qc,Dqc);
+  //     Eigen::MatrixXd inertia_matrix = m_chain->getJointInertia(qc);
       
-      m_H_variable.block(ic*m_nax,ic*m_nax,m_nax,m_nax) += m_lambda_tau * inertia_matrix.transpose()*inertia_matrix;
-      m_f.block(ic*m_nax,0,m_nax,1)                     += m_lambda_tau * non_linear_part_torque.transpose()*inertia_matrix;
-    }
-  }
-
+  //     m_H_variable.block(ic*m_nax,ic*m_nax,m_nax,m_nax) += m_lambda_tau * inertia_matrix.transpose()*inertia_matrix;
+  //     m_f.block(ic*m_nax,0,m_nax,1)                     += m_lambda_tau * non_linear_part_torque.transpose()*inertia_matrix;
+  //   }
+  // }
+  // std::cout << "MH_variable: " << m_H_variable << std::endl;
+  // std::cout << "m_f: " << m_f << std::endl;
+  // std::cout << "m_lambda_jerk: " << m_lambda_jerk << std::endl;
+  // std::cout << "m_jerk_forced_response: " << m_jerk_forced_response << std::endl;
+  // std::cout << "m_jerk_free_response: " << m_jerk_free_response << std::endl;
+  // std::cout << "m_nax*m_nc: " << m_nax*m_nc << std::endl;
+  // std::cout << "m_f dimensions: " << m_f.size() << std::endl;
+  // std::cout << "m_sol" << m_sol << std::endl;
+  // std::cout << "id" << id << std::endl;
   m_H_variable.block(0,0,m_nax*m_nc,m_nax*m_nc) += m_lambda_jerk * m_jerk_forced_response.transpose()*m_jerk_forced_response;
+  // std::cout << "5" << std::endl;
   m_f.segment(0,m_nax*m_nc)                     += m_lambda_jerk * ((m_jerk_free_response*(m_sol.head(m_nax))).transpose()*m_jerk_forced_response);
+  // std::cout << "6" << std::endl;
 
   m_H=m_H_fixed+m_H_variable;
-  
+  // std::cout << "7" << std::endl;
+
 }
 
 void ThorQP::setInitialState ( const Eigen::VectorXd& x0 )
@@ -481,8 +501,22 @@ void ThorQP::setInitialState ( const Eigen::VectorXd& x0 )
 
 void ThorQP::updateState ( const Eigen::VectorXd& next_acc )
 {
+  // std::printf("---------------------------------------------------\n");
+  // for (int i = 0; i < m_state.size(); ++i) {
+  //   std::printf("m_state[%d]: %f\n", i, m_state(i));
+  // }
+  // for (int i = 0; i < next_acc.size(); ++i) {
+  //   std::printf("next_acc[%d]: %f\n", i, next_acc(i));
+  // }
+
+
   m_state.head(m_nax)+=(m_state.tail(m_nax)+0.5*next_acc*m_dt)*m_dt;
   m_state.tail(m_nax)+=next_acc*m_dt;
+
+ 
+  // std::printf("Dt: %f\n",m_dt);
+  // std::printf("---------------------------------------------------\n");
+  
 }
 
 Eigen::VectorXd ThorQP::getState()
@@ -549,6 +583,109 @@ void ThorQP::setDynamicsChain(const rdyn::ChainPtr& chain)
   m_chain=chain;
 }
 
+Eigen::VectorXd ThorQP::getFirstPredictionPos()
+{
+  if (m_prediction_pos.size()>0)
+  {
+    return m_prediction_pos.head(m_nax);
+  }
+  else
+  {
+    Eigen::VectorXd empty;
+    return empty;
+  }
 
+}
+Eigen::VectorXd ThorQP::getFirstPredictionVel()
+{
+  if (m_prediction_vel.size()>0)
+  {
+    return m_prediction_vel.head(m_nax);
+  }
+  else
+  {
+    Eigen::VectorXd empty;
+    return empty;
+  }
+}
+ThorQP ThorQP::clone()
+{
+  ThorQP clone = ThorQP();
+
+  clone.m_are_matrices_updated = m_are_matrices_updated;
+
+  clone.m_use_input_blocking = m_use_input_blocking;
+
+  clone.m_weigth_matrix = m_weigth_matrix;
+  clone.m_H_fixed = m_H_fixed;
+  clone.m_H_variable = m_H_variable;
+  clone.m_f_scaling = m_f_scaling;
+  clone.m_f_pos = m_f_pos;
+  clone.m_f_vel = m_f_vel;
+  
+  clone.m_f = m_f;
+  clone.m_H = m_H;
+
+  clone.m_sol = m_sol;
+
+  clone.m_ub = m_ub;
+  clone.m_lb = m_lb;
+  clone.m_CE = m_CE;
+  clone.m_ce0 = m_ce0;
+
+  clone.m_CI = m_CI;
+  clone.m_ci0 = m_ci0;
+
+  clone.m_qmax = m_qmax;
+  clone.m_qmin = m_qmin;
+  clone.m_Dqmax = m_Dqmax;
+  clone.m_DDqmax = m_DDqmax;
+  clone.m_tau_max = m_tau_max;
+
+  clone.m_are_position_bounds_active = m_are_position_bounds_active;
+  clone.m_are_torque_bounds_active = m_are_torque_bounds_active;
+
+  clone.m_prediction_pos = m_prediction_pos;
+  clone.m_prediction_vel = m_prediction_vel;
+
+  clone.m_control_intervals = m_control_intervals;
+  clone.m_prediction_time = m_prediction_time;
+  clone.m_free_response = m_free_response;
+  clone.m_forced_response = m_forced_response;
+  clone.m_position_free_resp = m_position_free_resp;
+  clone.m_position_forced_resp = m_position_forced_resp;
+  clone.m_next_position_forced_resp = m_next_position_forced_resp;
+  clone.m_next_position_free_resp = m_next_position_free_resp;
+  clone.m_velocity_free_resp = m_velocity_free_resp;
+  clone.m_velocity_forced_resp = m_velocity_forced_resp;
+  clone.m_do_scaling = m_do_scaling;
+  clone.m_invariance_free_resp = m_invariance_free_resp;
+
+  clone.m_jerk_free_response = m_jerk_free_response;
+  clone.m_jerk_forced_response = m_jerk_forced_response;
+
+  clone.m_svd = m_svd;
+
+  clone.m_nc = m_nc;
+  clone.m_nax = m_nax;
+  clone.m_control_horizon_time = m_control_horizon_time;
+  clone.m_dt = m_dt;
+
+  clone.m_lambda_acc = m_lambda_acc;
+  clone.m_lambda_tau = m_lambda_tau;
+  clone.m_lambda_jerk = m_lambda_jerk;
+  clone.m_lambda_scaling = m_lambda_scaling;
+  clone.m_lambda_clik = m_lambda_clik;
+
+  clone.m_state = m_state;
+
+  clone.m_chain = m_chain;
+
+  // For secuity reasons, we set the interval i the cloning process
+
+  clone.setIntervals(m_nc, m_nax, m_control_horizon_time, m_dt);
+  
+  return clone;
+}
 }
 }

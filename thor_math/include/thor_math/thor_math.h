@@ -47,7 +47,9 @@ protected:
   bool m_are_matrices_updated;
 
   bool m_use_input_blocking;
-  
+  const float m_min_scaling = 0.0;
+  const float m_max_scaling = 1.1;
+
   Eigen::MatrixXd m_weigth_matrix;
   Eigen::MatrixXd m_H_fixed;
   Eigen::MatrixXd m_H_variable;
@@ -117,8 +119,87 @@ protected:
                               const Eigen::VectorXd& next_targetQ,
                               const double& target_scaling,
                               const Eigen::VectorXd& x0);
-
+  int id = 0;
 public:
+  ThorQP& operator=(const ThorQP& other) {
+    if (this != &other) {
+      m_are_matrices_updated = other.m_are_matrices_updated;
+      id = other.id+1;
+      m_use_input_blocking = other.m_use_input_blocking;
+
+      m_weigth_matrix = other.m_weigth_matrix;
+      m_H_fixed = other.m_H_fixed;
+      m_H_variable = other.m_H_variable;
+      m_f_scaling = other.m_f_scaling;
+      m_f_vel = other.m_f_vel;
+      m_f_pos = other.m_f_pos;
+
+      m_H = other.m_H;
+      m_f = other.m_f;
+
+      m_ub = other.m_ub;
+      m_lb = other.m_lb;
+      m_CE = other.m_CE;
+      m_ce0 = other.m_ce0;
+
+      m_CI = other.m_CI;
+      m_ci0 = other.m_ci0;
+
+      m_qmax = other.m_qmax;
+      m_qmin = other.m_qmin;
+      m_Dqmax = other.m_Dqmax;
+      m_DDqmax = other.m_DDqmax;
+      m_tau_max = other.m_tau_max;
+
+      m_are_position_bounds_active = other.m_are_position_bounds_active;
+      m_are_torque_bounds_active = other.m_are_torque_bounds_active;
+
+      m_prediction_pos = other.m_prediction_pos;
+      m_prediction_vel = other.m_prediction_vel;
+
+      m_control_intervals = other.m_control_intervals;
+      m_prediction_time = other.m_prediction_time;
+      m_forced_response = other.m_forced_response;
+      m_free_response = other.m_free_response;
+      m_position_free_resp = other.m_position_free_resp;
+      m_position_forced_resp = other.m_position_forced_resp;
+      m_next_position_free_resp = other.m_next_position_free_resp;
+      m_next_position_forced_resp = other.m_next_position_forced_resp;
+      m_velocity_free_resp = other.m_velocity_free_resp;
+      m_velocity_forced_resp = other.m_velocity_forced_resp;
+      m_do_scaling = other.m_do_scaling;
+      m_invariance_free_resp = other.m_invariance_free_resp;
+
+      m_jerk_free_response = other.m_jerk_free_response;
+      m_jerk_forced_response = other.m_jerk_forced_response;
+
+      m_svd = other.m_svd;
+
+      m_nc = other.m_nc;
+      m_nax = other.m_nax;
+      m_control_horizon_time = other.m_control_horizon_time;
+      m_dt = other.m_dt;
+
+      m_lambda_acc = other.m_lambda_acc;
+      m_lambda_tau = other.m_lambda_tau;
+      m_lambda_scaling = other.m_lambda_scaling;
+      m_lambda_clik = other.m_lambda_clik;
+      m_lambda_jerk = other.m_lambda_jerk;
+
+      m_state = other.m_state;
+
+      m_chain = other.m_chain;      
+      setIntervals(m_nc, m_nax, m_control_horizon_time, m_dt);
+
+      std::cout << "CLONING THORQP " << id << std::endl;
+      std::cout<< "m_nax " << m_nax << std::endl;
+      std::cout<< "m_nc " << m_nc << std::endl;
+      std::cout<< "m_sol" << m_sol.transpose() << std::endl;
+
+    }
+    return *this;
+  }
+
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   ThorQP();
 
@@ -173,6 +254,16 @@ public:
   
   
   void setDynamicsChain(const rdyn::ChainPtr& chain);
+  Eigen::VectorXd getFirstPredictionPos();
+  Eigen::VectorXd getFirstPredictionVel();
+  double getDt(){return m_dt;};
+  
+  /**
+   * @brief Creates a deep copy of the ThorQp instance.
+   *
+   * @return ThorQp  the newly created clone of this object.
+   */
+  ThorQP clone();
 };
 
 }
