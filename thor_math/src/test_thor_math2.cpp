@@ -1,4 +1,9 @@
 #include <thor_math/thor_math.h>
+#include <pinocchio/parsers/urdf.hpp>
+#include <pinocchio/algorithm/joint-configuration.hpp>
+#include <fstream>
+// ...
+
 
 void triangularWave(double t, const double& scaling, double& pos, double& vel, double& acc)
 {
@@ -21,135 +26,132 @@ void triangularWave(double t, const double& scaling, double& pos, double& vel, d
   }
   
 }
+void human_circle(double t,  Eigen::Vector3d& pos, double& vel)
+{
+  double radius = 0.3;               // Smaller, so stays inside workspace
+  double omega = 2*M_PI/5.0;
+  double center_x = 0.7;             // Further in front of the robot
+  double center_y = 0.0;
+  double center_z = 0.8;             // Higher up
 
-int main(int argc, char **argv){
-  
-  unsigned nax=6;
-  unsigned int nc=5;
-  double control_horizon=1;
-  double st=0.001;
- 
-  double lambda_acc=1e-6;
-  double lambda_tau=0;
-  double lambda_scaling=1e-1;
-  double lambda_clik=1e-2;
-  double lamda_jerk=1e-12;
-  
-  Eigen::VectorXd qmax(nax);
-  Eigen::VectorXd qmin(nax);
-  Eigen::VectorXd Dqmax(nax);
-  Eigen::VectorXd DDqmax(nax);
-  Eigen::VectorXd tau_max(nax);
-  
-  qmax.setConstant(10);
-  qmin.setConstant(-10);
-  Dqmax.setConstant(2);
-  DDqmax.setConstant(5);
-  tau_max.setConstant(100);
-  
-    
-//  ROS_INFO_NAMED(nh.getNamespace(),"CREATING THOR");
-  thor::math::ThorQP thor;
-  
-//  ROS_INFO_NAMED(nh.getNamespace(),"SETTING THOR MATRICES");
-  thor.setIntervals(nc,nax,control_horizon,st);
-  thor.setWeigthFunction(lambda_acc,lambda_tau,lamda_jerk,lambda_scaling,lambda_clik);
-  thor.setConstraints(qmax,qmin,Dqmax,DDqmax,tau_max);
-  thor.activateTorqueBounds(false);
-  if (thor.needUpdate())
-  {
-//    ROS_INFO_NAMED(nh.getNamespace(),"UPDATING THOR MATRICES");
-    thor.updateMatrices();
-  }
-  Eigen::VectorXd prediction_time = thor.getPredictionTimeInstant();
-  Eigen::VectorXd state(2*nax);
-  state.setZero();
-  thor.setInitialState(state);
-  
-  Eigen::VectorXd target_Dq(nc*nax);
-  target_Dq.setOnes();
-  double target_scaling=1;
-  Eigen::VectorXd next_Q(nax);
-  next_Q.setZero();
-  
-  Eigen::VectorXd next_acc(nax);
-  double scaling=1;
-  
-//  ros::Time init=ros::Time::now();
-//  ros::Rate lp(1.0/st);
-  
-//  ros::Publisher pub=nh.advertise<sensor_msgs::JointState>("/joint_states",1);
-//  ros::Publisher target_pub=nh.advertise<sensor_msgs::JointState>("/joint_target",1);
-//  ros::Publisher scaling_pub=nh.advertise<std_msgs::Float64>("/scaling",1);
-  
-//  sensor_msgs::JointState msg;
-//  msg.position.resize(nax);
-//  msg.velocity.resize(nax);
-//  msg.effort.resize(nax);
-  
-//  sensor_msgs::JointState tmsg;
-//  tmsg.position.resize(nax);
-//  tmsg.velocity.resize(nax);
-//  tmsg.effort.resize(nax);
-  
-//  std_msgs::Float64 scaling_msg;
-  double nominal_t=0;
-  double max_t_calc=0;
-  double mean_t_calc=0;
-  unsigned int iter=0;
+  pos(0) = radius*cos(omega*t) + center_x;
+  pos(1) = radius*sin(omega*t) + center_y;
+  pos(2) = center_z;
 
-
-  std::cout << "starting ... " << std::endl;
-  while (iter<100)
-  {
-    nominal_t+=scaling*st;
-    for (unsigned int iax=0;iax<nax;iax++)
-    {
-      double tmp_pos,tmp_acc;
-      triangularWave(nominal_t+prediction_time(0),1,      next_Q(iax),target_Dq(iax),tmp_acc);
-//      triangularWave(nominal_t+prediction_time(0),scaling,tmsg.position.at(iax),tmsg.velocity.at(iax),tmsg.effort.at(iax));
-      
-      for (unsigned int ic=1;ic<nc;ic++)
-      {
-        triangularWave(nominal_t+prediction_time(ic),1,tmp_pos,target_Dq(iax+ic*nax),tmp_acc);
-      }
-    }
-    
-//     ROS_INFO("Step %d",i);
-//    ros::Time t0=ros::Time::now();
-//     thor.computedUncostrainedSolution(target_Dq,next_Q,target_scaling,thor.getState(),next_acc,scaling);
-
-    std::cout << __LINE__ << " ... " << std::endl;
-    printf("aaa\n");
-    thor.computedCostrainedSolution(target_Dq,next_Q,target_scaling,thor.getState(),next_acc,scaling);
-//    double tcalc=(ros::Time::now()-t0).toSec();
-    std::cout << __LINE__ << " ... " << std::endl;
-    thor.updateState(next_acc);
-
-//    for (unsigned int iax=0;iax<nax;iax++)
-//    {
-//      msg.position.at(iax)=thor.getState()(iax);
-//      msg.velocity.at(iax)=thor.getState()(iax+nax);
-//      msg.effort.at(iax)=next_acc(iax);
-      
-//    }
-//    msg.header.stamp=ros::Time::now();
-//    pub.publish(msg);
-//    tmsg.header.stamp=ros::Time::now();
-//    target_pub.publish(tmsg);
-//    scaling_msg.data=scaling;
-//    scaling_pub.publish(scaling_msg);
-//    lp.sleep();
-//    if (tcalc>max_t_calc)
-//    {
-//      max_t_calc=tcalc;
-//      ROS_ERROR_STREAM("max t calc [ms] =" << tcalc*1000 << ", scaling = " << scaling);
-//    }
-    iter++;
-//    mean_t_calc=((mean_t_calc)*(iter-1)+tcalc)/iter;
-//    ROS_WARN_STREAM_THROTTLE(1,"mean t calc [ms] =" << mean_t_calc*1000 << ", max t calc [ms] =" << max_t_calc*1000 << ", scaling = " << scaling);
-    
-//     return 0;
-  }
-  return 0;  
+  vel = -radius*omega*sin(omega*t);
 }
+
+ int main(int argc, char **argv){
+
+    using namespace thor::math;
+
+    std::ofstream logfile("/home/galileo/projects/thor_ws/src/thor_core/thor_math/trajectory_log.csv");
+    logfile << "time,q1,q2,q3,q4,q5,q6,ph_x,ph_y,ph_z\n";
+
+    std::string urdf_path = "/home/galileo/projects/thor_ws/src/thor_core/thor_math/ur10/ur10.urdf"; // Replace with your URDF path
+    pinocchio::Model model;
+    pinocchio::urdf::buildModel(urdf_path, model);
+
+    ThorQP qp;
+    qp.setPinocchioModel(model);
+    // Dummy initialization
+    unsigned int nax = model.nv; // Number of joints in the model
+    unsigned int nc = 5;
+    double horizon = 1.0;
+    double st = 0.002;
+    std::cout << "Setting up ThorQP with " << nax << " joints and " << nc << " intervals." << std::endl;
+    
+    qp.setIntervals(nc, nax, horizon, st);
+    qp.setCBFParameters(2.5,0.15,0.25,1.0);
+    qp.setConstraints(Eigen::VectorXd::Constant(nax, 2.0),   // qmax
+                        Eigen::VectorXd::Constant(nax, -2.0),  // qmin
+                        Eigen::VectorXd::Constant(nax, 1.0),   // Dqmax
+                        Eigen::VectorXd::Constant(nax, 5.0),   // DDqmax
+                        Eigen::VectorXd::Constant(nax, 10.0)); // tau_max
+    std::cout << "Setting weight functions." << std::endl;
+    qp.setWeigthFunction(1e-3, 0.0, 1e-6, 1e+2, 1e+4);
+    qp.activatePositionBounds(true);
+    qp.activateTorqueBounds(false);
+
+    std::cout << "Updating matrices." << std::endl;
+        // Set initial state (zero position + velocity)
+        Eigen::VectorXd x0 = Eigen::VectorXd::Zero(2 * nax);
+        std::cout << "Setting initial state." << std::endl;
+
+        if (qp.needUpdate()) {
+            qp.updateMatrices();
+            std::cout << "Matrices updated." << std::endl;
+        } else {
+            std::cout << "No need to update matrices." << std::endl;
+        }
+        qp.setInitialState(x0);
+        std::cout << "setting target  matrices." << std::endl;
+        // Define dummy targets
+        Eigen::VectorXd targetDq = Eigen::VectorXd::Constant(nax*nc, 0.5);     // target velocities
+        Eigen::VectorXd next_targetQ = Eigen::VectorXd::Constant(nax, 0.3); // next target positions
+        double target_scaling = 1.0;
+        std::cout << "Computing constrained solution." << std::endl;
+        // CBF parameters
+        double vh = 0.2;
+        Eigen::Vector3d p_h(0.4, 0.0, 0.2);
+        unsigned int frameId = 3; // assumes a valid frame index in the UR10 model (you may check this)
+
+        // Outputs
+        Eigen::VectorXd next_acc;
+        double scaling;
+
+        // Run constrained QP solution
+        std::cout << "Running computedCostrainedSolution." << std::endl;
+        bool success = qp.computedCostrainedSolution(targetDq, next_targetQ, target_scaling, qp.getState(), vh, p_h, frameId, next_acc, scaling);
+
+        // Output results
+        std::cout << "Constrained Solution Success: " << (success ? "Yes" : "No") << std::endl;
+
+        if (success) {
+            std::cout << "Next Acceleration:\n" << next_acc.transpose() << std::endl;
+            std::cout << "Next Scaling: " << scaling << std::endl;
+        } else {
+            std::cerr << "QP computation failed!" << std::endl;
+        }
+
+        Eigen::VectorXd prediction_time = qp.getPredictionTimeInstant();
+        int iter = 0;
+        double nominal_t = 0.0;
+
+        std::cout << "starting ... " << std::endl;
+        while (iter<8000)
+        {
+            nominal_t+=scaling*st;
+            for (unsigned int iax=0;iax<nax;iax++)
+            {
+            double tmp_pos,tmp_acc;
+            triangularWave(nominal_t+prediction_time(0),1,      next_targetQ(iax),targetDq(iax),tmp_acc);
+        //      triangularWave(nominal_t+prediction_time(0),scaling,tmsg.position.at(iax),tmsg.velocity.at(iax),tmsg.effort.at(iax));
+            
+            for (unsigned int ic=1;ic<nc;ic++)
+            {
+                triangularWave(nominal_t+prediction_time(ic),1,tmp_pos,targetDq(iax+ic*nax),tmp_acc);
+            }
+            }
+
+            human_circle(nominal_t, p_h, vh);
+            std::cout << __LINE__ << " ... " << std::endl;
+            printf("aaa\n");
+            qp.computedCostrainedSolution(targetDq,next_targetQ,target_scaling,qp.getState(), vh, p_h, frameId,next_acc,scaling);
+            std::cout << __LINE__ << " ... " << std::endl;
+            qp.updateState(next_acc);
+            double t = nominal_t; // your simulation time
+            logfile << t;
+            for (int i = 0; i < nax; ++i) logfile << "," << qp.getState()[i];   // robot joints
+            logfile << "," << p_h(0) << "," << p_h(1) << "," << p_h(2) << "\n"; // human pos
+            iter++;
+
+    }
+    logfile.close();
+    return 0;  
+    }
+
+
+
+
+

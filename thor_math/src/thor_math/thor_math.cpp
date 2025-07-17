@@ -1,5 +1,7 @@
 #include <thor_math/thor_math.h>
-
+// #include <pinocchio/algorithm/kinematics.hpp>
+// #include <pinocchio/algorithm/jacobian.hpp>
+// #include <pinocchio/algorithm/frames.hpp>
 namespace thor 
 {
 namespace math
@@ -174,6 +176,21 @@ ThorQP::ThorQP()
   m_are_torque_bounds_active=false;
 }
 
+void ThorQP::setCBFParameters ( const double& a_s, const double& T_r, const double& C, const double& alpha )
+{
+  m_a_s=a_s;
+  m_T_r=T_r;
+  m_C=C;
+  m_alpha=alpha;
+}
+
+void ThorQP::setPinocchioModel ( const pinocchio::Model& model )
+{
+  m_model=model;
+  m_data=pinocchio::Data(m_model);
+  // m_eeFrameId = model.getFrameId("end_effector"); // Example, if you have an end-effector frame
+}
+
 void ThorQP::setConstraints ( const Eigen::VectorXd& qmax, const Eigen::VectorXd& qmin, const Eigen::VectorXd& Dqmax, const Eigen::VectorXd& DDqmax, const Eigen::VectorXd& tau_max )
 {
   m_qmax=qmax;
@@ -252,7 +269,11 @@ void ThorQP::setIntervals ( const unsigned int& num_of_intervals,
 
 }
 
-void ThorQP::setWeigthFunction ( const double& lambda_acc, const double& lambda_tau, const double& lambda_jerk, const double& lambda_scaling, const double& lambda_clik )
+void ThorQP::setWeigthFunction ( const double& lambda_acc, 
+                                 const double& lambda_tau, 
+                                 const double& lambda_jerk, 
+                                 const double& lambda_scaling, 
+                                 const double& lambda_clik )
 {
   m_lambda_acc=lambda_acc;
   m_lambda_tau=lambda_tau;
@@ -370,22 +391,25 @@ void ThorQP::updateMatrices()
    *
    *
    */
-  if (m_are_torque_bounds_active)
-  {
-    m_CI.conservativeResize(m_nc*(m_nax+1),  10*m_nc*m_nax+2*m_nc);
-    m_CI.block(0,8*m_nc*m_nax+2*m_nc,m_nc*(m_nax+1),2*m_nc*m_nax).setZero();
+//   if (m_are_torque_bounds_active)
+//   {
+//     m_CI.conservativeResize(m_nc*(m_nax+1),  10*m_nc*m_nax+2*m_nc);
+//     m_CI.block(0,8*m_nc*m_nax+2*m_nc,m_nc*(m_nax+1),2*m_nc*m_nax).setZero();
 
-//    m_CI.block(0,8*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=m_position_forced_resp.transpose();
-//    m_CI.block(0,9*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=-m_position_forced_resp.transpose();
+// //    m_CI.block(0,8*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=m_position_forced_resp.transpose();
+// //    m_CI.block(0,9*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=-m_position_forced_resp.transpose();
 
-    m_ci0.conservativeResize(10*m_nc*m_nax+2*m_nc);
-    m_ci0.tail(2*m_nc*m_nax).setZero();
-    for (unsigned int ic=0;ic<m_nc;ic++)
-    {
-      m_ci0.segment(8*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
-      m_ci0.segment(9*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
-    }
-  }
+//     m_ci0.conservativeResize(10*m_nc*m_nax+2*m_nc);
+//     m_ci0.tail(2*m_nc*m_nax).setZero();
+//     for (unsigned int ic=0;ic<m_nc;ic++)
+//     {
+//       m_ci0.segment(8*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
+//       m_ci0.segment(9*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
+//     }
+//   }
+
+  m_CI.conservativeResize(m_CI.rows(), m_CI.cols()+1);
+  m_ci0.conservativeResize(m_ci0.size() + 1);
 
   m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
   m_next_position_free_resp=m_position_free_resp.topRows(m_nax);
@@ -433,31 +457,37 @@ void ThorQP::updateMatrices()
 
 void ThorQP::computeActualMatrices ( const Eigen::VectorXd& targetDq, const Eigen::VectorXd& next_targetQ, const double& target_scaling, const Eigen::VectorXd& x0 )
 {
+  std::cout << "Computing actual matrices." << std::endl;
+  std::cout << targetDq   << std::endl;
+  std::cout << m_do_scaling << std::endl;
   Eigen::MatrixXd DQT=targetDq.asDiagonal()*m_do_scaling;
+  std::cout << "1" << std::endl;
   m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc)=-m_velocity_forced_resp.transpose()*DQT;
+  std::cout << "2" << std::endl;
   m_H_variable.block(m_nax*m_nc,0,m_nc,m_nax*m_nc)=m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc).transpose();
+  std::cout << "3" << std::endl;
   m_H_variable.block(m_nax*m_nc,m_nax*m_nc,m_nc,m_nc)=DQT.transpose()*DQT;
-  std::cout << "x0: "<<x0 << std::endl;
+  std::cout << "x0: "<<x0.transpose() << std::endl;
   m_f = m_f_vel*x0.tail(m_nax)+m_f_pos*x0+m_f_scaling*target_scaling;
   std::cout << "4" << std::endl;
   m_f.head(m_nc*m_nax) -= m_lambda_clik* (m_next_position_forced_resp.transpose()*next_targetQ).col(0);
   
   m_f.tail(m_nc) -= DQT.transpose()*m_velocity_free_resp*x0.tail(m_nax);
 
-  if (0)
-  {
-    for (unsigned int ic=0; ic<m_nc; ic++)
-    {
-      Eigen::VectorXd qc  = m_prediction_pos.block(ic*m_nax,0,m_nax,1);
-      Eigen::VectorXd Dqc = m_prediction_vel.block(ic*m_nax,0,m_nax,1);
+  // if (0)
+  // {
+  //   for (unsigned int ic=0; ic<m_nc; ic++)
+  //   {
+  //     Eigen::VectorXd qc  = m_prediction_pos.block(ic*m_nax,0,m_nax,1);
+  //     Eigen::VectorXd Dqc = m_prediction_vel.block(ic*m_nax,0,m_nax,1);
       
-      Eigen::VectorXd non_linear_part_torque=m_chain->getJointTorqueNonLinearPart(qc,Dqc);
-      Eigen::MatrixXd inertia_matrix = m_chain->getJointInertia(qc);
+  //     // Eigen::VectorXd non_linear_part_torque=m_chain->getJointTorqueNonLinearPart(qc,Dqc);
+  //     // Eigen::MatrixXd inertia_matrix = m_chain->getJointInertia(qc);
       
-      m_H_variable.block(ic*m_nax,ic*m_nax,m_nax,m_nax) += m_lambda_tau * inertia_matrix.transpose()*inertia_matrix;
-      m_f.block(ic*m_nax,0,m_nax,1)                     += m_lambda_tau * non_linear_part_torque.transpose()*inertia_matrix;
-    }
-  }
+  //     m_H_variable.block(ic*m_nax,ic*m_nax,m_nax,m_nax) += m_lambda_tau * inertia_matrix.transpose()*inertia_matrix;
+  //     m_f.block(ic*m_nax,0,m_nax,1)                     += m_lambda_tau * non_linear_part_torque.transpose()*inertia_matrix;
+  //   }
+  // }
 
   m_H_variable.block(0,0,m_nax*m_nc,m_nax*m_nc) += m_lambda_jerk * m_jerk_forced_response.transpose()*m_jerk_forced_response;
   m_f.segment(0,m_nax*m_nc)                     += m_lambda_jerk * ((m_jerk_free_response*(m_sol.head(m_nax))).transpose()*m_jerk_forced_response);
@@ -493,15 +523,27 @@ Eigen::VectorXd ThorQP::getState()
 bool ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
                                           const Eigen::VectorXd& next_targetQ, 
                                           const double& target_scaling, 
-                                          const Eigen::VectorXd& x0, 
+                                          const Eigen::VectorXd& x0,
+                                          const double &vh,
+                                          const Eigen::Vector3d &p_h, 
+                                          const unsigned int &frameId,
                                           Eigen::VectorXd& next_acc, 
-                                          double& next_scaling )
+                                          double& next_scaling)
 {
+  std::cout << "Computing constrained solution." << std::endl;
+  // Build cost matrices and baseline inequality vector
   computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
+  std::cout << "1" << std::endl;
   Eigen::VectorXd ci0=m_ci0;
+ 
+  // Velocity bounds
+  std::cout << "ci0 size: " << ci0.size() << " x 1" << std::endl;
+  std::cout << "m_ci0 size: " << m_ci0.size() << " x 1" << std::endl;
+
   ci0.segment(2*m_nc*(m_nax+1)           ,m_nax*m_nc)+=m_velocity_free_resp*x0.tail(m_nax); // vel lower bounds
   ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc,m_nax*m_nc)-=m_velocity_free_resp*x0.tail(m_nax); // vel upper bounds
-
+  std::cout << "2" << std::endl;
+  // Position bounds
   if (m_are_position_bounds_active)
   {
     ci0.segment(2*m_nc*(m_nax+1)+2*m_nax*m_nc,m_nax*m_nc)+=m_position_free_resp*x0; // pos lower bounds
@@ -509,22 +551,73 @@ bool ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
     ci0.segment(2*m_nc*(m_nax+1)+4*m_nax*m_nc,m_nax*m_nc)+=m_invariance_free_resp*x0; // invariance lower constraint
     ci0.segment(2*m_nc*(m_nax+1)+5*m_nax*m_nc,m_nax*m_nc)-=m_invariance_free_resp*x0; // invariance upper constraint
   }
-  if  (m_are_torque_bounds_active)
-  {
-    for (unsigned int idx=0;idx<m_nc;idx++)
-    {
-      m_CI.block(idx*m_nc,8*m_nc*m_nax+2*m_nc,m_nax,m_nax)=m_chain->getJointInertia(m_prediction_pos.segment(idx*m_nax,m_nax)); // update torque constraints
-      Eigen::VectorXd torque_nonlinear_part=m_chain->getJointTorqueNonLinearPart(m_prediction_pos.segment(idx*m_nax,m_nax),m_prediction_vel.segment(idx*m_nax,m_nax));
-      ci0.segment(2*m_nc*(m_nax+1)+6*m_nax*m_nc+idx*m_nc,m_nax)+=torque_nonlinear_part; // torque lower bounds
-      ci0.segment(2*m_nc*(m_nax+1)+7*m_nax*m_nc+idx*m_nc,m_nax)-=torque_nonlinear_part; // torque upper bounds
-    }
-  }
+  std::cout << "3" << std::endl;
+  // if  (m_are_torque_bounds_active)
+  // {
+  //   for (unsigned int idx=0;idx<m_nc;idx++)
+  //   {
+  //     // m_CI.block(idx*m_nc,8*m_nc*m_nax+2*m_nc,m_nax,m_nax)=m_chain->getJointInertia(m_prediction_pos.segment(idx*m_nax,m_nax)); // update torque constraints
+  //     Eigen::VectorXd torque_nonlinear_part=m_chain->getJointTorqueNonLinearPart(m_prediction_pos.segment(idx*m_nax,m_nax),m_prediction_vel.segment(idx*m_nax,m_nax));
+  //     ci0.segment(2*m_nc*(m_nax+1)+6*m_nax*m_nc+idx*m_nc,m_nax)+=torque_nonlinear_part; // torque lower bounds
+  //     ci0.segment(2*m_nc*(m_nax+1)+7*m_nax*m_nc+idx*m_nc,m_nax)-=torque_nonlinear_part; // torque upper bounds
+  //   }
+  // }
+
+
+  // CBF constraint
+
+  const Eigen::VectorXd &q  = x0.head(m_nax);
+  const Eigen::VectorXd &dq = x0.tail(m_nax);
+  std::cout << "CBF constraint" << std::endl;
+  // Pinocchio kinematics 
+  pinocchio::forwardKinematics(m_model, m_data, q, dq);
+  pinocchio::updateFramePlacements(m_model, m_data);
+  std::cout << "Pinocchio kinematics done" << std::endl;
+  Eigen::Vector3d p_r   = m_data.oMf[frameId].translation();   // EE pos
+  Eigen::Vector3d d_vec = p_r - p_h;                            // to human
+  double          d     = std::max(1e-6, d_vec.norm());           // avoid 0
+  Eigen::Vector3d e_rh  = d_vec / d;                              // unit dir
+  std::cout << "Distance to human: " << d << std::endl;
+  // Jacobian (linear part) -----------------------------------------------
+  Eigen::Matrix<double,6,Eigen::Dynamic> J6;
+  J6.resize(6, m_model.nv);
+  std::cout << "q:" << q.transpose() << std::endl;
+  pinocchio::computeFrameJacobian(m_model, m_data, q, frameId,
+                                  pinocchio::LOCAL_WORLD_ALIGNED, J6);
+  Eigen::Matrix<double,3,Eigen::Dynamic> Jlin = J6.topRows<3>();   // 3×n
+  Eigen::RowVectorXd Jd = e_rh.transpose() * Jlin;                 // 1×n
+  std::cout << "Jacobian computed" << std::endl;
+
+  // Relative speed & barrier terms ----------------------------------------
+  double v_r   = (Jd * dq)(0);
+  double v_rel = v_r - vh;
+  double Theta = v_rel / m_a_s + m_T_r + vh / m_a_s;
+
+  double d_max = m_C
+               + v_rel * v_rel / (2.0 * m_a_s)
+               + v_rel * m_T_r
+               + v_rel * vh / m_a_s
+               + m_T_r * vh;
+
+  m_h = d - d_max;   // barrier value
+
+  Eigen::RowVectorXd A_barrier = -Theta * Jd;   // 1×n  (note minus)
+  double             b_barrier = -Jd.dot(dq) + m_alpha * m_h;
+  std::cout << "Barrier terms computed" << std::endl;
+  // Append new row to CI / ci0  (quadprog expects CI^T x + ci0 ≥ 0) -------
+  // Note: CI is transposed in the solve_quadprog call, so we append a row
+  int n_cols = m_CI.cols();
+  m_CI.col(n_cols - 1).setZero();
+  m_CI.col(n_cols - 1).segment(0, m_nax) = -A_barrier;  // –A ⇒ ≤ into ≥ format
+  ci0(ci0.size() - 1) = b_barrier;
+  std::cout << "CI and ci0 updated" << std::endl;
   Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
+  std::cout << "Quadratic program solved" << std::endl;
   next_acc=m_sol.head(m_nax);
   next_scaling=m_sol (m_nax*m_nc);
   m_prediction_vel = m_velocity_forced_resp*m_sol.head(m_nc*m_nax)+m_velocity_free_resp*x0.tail(m_nax);
   m_prediction_pos = m_position_forced_resp*m_sol.head(m_nc*m_nax)+m_position_free_resp*x0;
-  
+  std::cout << "Solution computed" << std::endl;
   return true;
 }
 
@@ -544,10 +637,36 @@ bool ThorQP::computedUncostrainedSolution ( const Eigen::VectorXd& targetDq,
   return true;
 }
 
-void ThorQP::setDynamicsChain(const rdyn::ChainPtr& chain)
+Eigen::VectorXd ThorQP::getFirstPredictionPos()
 {
-  m_chain=chain;
+  if (m_prediction_pos.size()>0)
+  {
+    return m_prediction_pos.head(m_nax);
+  }
+  else
+  {
+    Eigen::VectorXd empty;
+    return empty;
+  }
+
 }
+Eigen::VectorXd ThorQP::getFirstPredictionVel()
+{
+  if (m_prediction_vel.size()>0)
+  {
+    return m_prediction_vel.head(m_nax);
+  }
+  else
+  {
+    Eigen::VectorXd empty;
+    return empty;
+  }
+}
+
+// void ThorQP::setDynamicsChain(const rdyn::ChainPtr& chain)
+// {
+//   m_chain=chain;
+// }
 
 
 }

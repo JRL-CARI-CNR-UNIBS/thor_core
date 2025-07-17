@@ -5,7 +5,7 @@ set(CMAKE_BUILD_TYPE "Debug")
 # Dependencies
 find_package(Eigen3 REQUIRED  COMPONENTS Core Dense Geometry)
 find_package(rdyn_core REQUIRED)
-
+find_package(pinocchio REQUIRED)
 
 # Libraries (SHARED: dynamic .so/.dll)
 add_library(${PROJECT_NAME} SHARED
@@ -15,6 +15,7 @@ add_library(${PROJECT_NAME} SHARED
 target_link_libraries(${PROJECT_NAME}  PUBLIC
   Eigen3::Eigen
   rdyn_core::rdyn_core
+  pinocchio::pinocchio
 )
 
 if(CMAKE_COMPILER_IS_GNUCXX)
@@ -56,6 +57,7 @@ add_executable(test_thor_math2
 target_link_libraries(test_thor_math2
   PUBLIC
   thor_math::thor_math
+  pinocchio::pinocchio
   )
 
 
