@@ -47,7 +47,8 @@ class ThorQP
 {
 protected:
   bool m_are_matrices_updated;
-
+  const float m_min_scaling = 0.0;
+  const float m_max_scaling = 1.1;
   bool m_use_input_blocking;
   
   Eigen::MatrixXd m_weigth_matrix;
@@ -113,12 +114,13 @@ protected:
 
   Eigen::VectorXd m_state;
   
+  bool               m_use_cbf;
   pinocchio::Model   m_model;          // robot model (built from URDF once)
   pinocchio::Data    m_data;           // Pinocchio runtime buffers
   double             m_a_s, m_T_r, m_C;// parameters from your d_max formula
   double             m_alpha;    
   double             m_h;              // barrier value
-  // rdyn::ChainPtr  m_chain;
+  rdyn::ChainPtr  m_chain;
   
   virtual void computeActualMatrices( const Eigen::VectorXd& targetDq,
                               const Eigen::VectorXd& next_targetQ,
@@ -223,6 +225,8 @@ public:
 
   void activateTorqueBounds(const bool enable_tau_bounds);
 
+  void activateCbfBounds(const bool enable_cbf_bounds);
+  
   bool arePositionBoundsActive();
   
   void setIntervals(const unsigned int& num_of_intervals,
@@ -249,13 +253,13 @@ public:
                                       Eigen::VectorXd& next_acc,
                                       double& next_scaling
                                    );
-  virtual bool computedCostrainedSolution(  const Eigen::VectorXd& targetDq,
+  virtual double computedCostrainedSolution(  const Eigen::VectorXd& targetDq,
                                       const Eigen::VectorXd& next_targetQ,
                                       const double& target_scaling,
                                       const Eigen::VectorXd& x0,
-                                      const double &vh,
-                                      const Eigen::Vector3d &p_h, 
-                                      const unsigned int &frameId,
+                                      const Eigen::Vector3d& vh,
+                                      const Eigen::Vector3d& p_h,
+                                      const unsigned int& frameId,
                                       Eigen::VectorXd& next_acc,
                                       double& next_scaling
   );
@@ -269,6 +273,7 @@ public:
   Eigen::VectorXd getFirstPredictionVel();
   double getDt(){return m_dt;};
   // void setDynamicsChain(const rdyn::ChainPtr& chain);
+  // ThorQP clone();
 };
 
 }
