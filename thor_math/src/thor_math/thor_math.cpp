@@ -1,11 +1,39 @@
 #include <thor_math/thor_math.h>
 // #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>
+#include <pinocchio/algorithm/joint-configuration.hpp>
 // #include <pinocchio/algorithm/frames.hpp>
 namespace thor 
 {
 namespace math
 {
+
+void computeFrameJacobianDot(
+    const pinocchio::Model& model,
+    pinocchio::Data& data,
+    pinocchio::FrameIndex frame_id,
+    const Eigen::VectorXd& q,
+    const Eigen::VectorXd& dq,
+    pinocchio::ReferenceFrame rf,
+    double dt,
+     Eigen::Matrix<double,6,Eigen::Dynamic>& dJ // (6, model.nv)
+) {
+    // Jacobian at q
+    pinocchio::computeJointJacobians(model, data, q);
+    Eigen::MatrixXd J1(6, model.nv);
+    pinocchio::getFrameJacobian(model, data, frame_id, rf, J1);
+
+    // Integrate q forward by dq*dt
+    Eigen::VectorXd q_next = pinocchio::integrate(model, q, dq * dt);
+
+    // Jacobian at q_next
+    pinocchio::computeJointJacobians(model, data, q_next);
+    Eigen::MatrixXd J2(6, model.nv);
+    pinocchio::getFrameJacobian(model, data, frame_id, rf, J2);
+
+    // Central finite difference
+    dJ = (J2 - J1) / dt;
+}
 
 
 std::pair<Eigen::Vector2d, Eigen::Matrix<double, 2, 3>>
@@ -623,7 +651,7 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
     double          d     = std::max(1e-6, d_vec.norm());           // avoid 0
     Eigen::Vector3d e_rh  = d_vec / d;       
 
-    double vh_proj = e_rh.dot(vh);                       // unit dir
+    double vh_proj = -e_rh.dot(vh);                       // unit dir
     
     auto twist =  pinocchio::getFrameVelocity(m_model, m_data, frameId, pinocchio::LOCAL_WORLD_ALIGNED);
     Eigen::Vector3d v_r = twist.linear();                // robot linear velocity
@@ -644,11 +672,13 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
     Eigen::Matrix<double,3,Eigen::Dynamic> Jlin = J.topRows<3>();   // 3×n
     //Eigen::RowVectorXd Jd = e_rh.transpose() * Jlin;                 // 1×n
 
-
-    pinocchio::getFrameJacobianTimeVariation(m_model,
+    computeFrameJacobianDot(m_model,
             m_data,
             frameId,
+            q,
+            dq,
             pinocchio::LOCAL_WORLD_ALIGNED,
+            m_dt, // numerical differentiation step
             dJ
         );
     Eigen::Matrix<double,3,Eigen::Dynamic> dJlin = dJ.topRows<3>(); // 3×n
@@ -686,7 +716,7 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
     std::cout << "partial_h_on_x: " << partial_h_on_x << std::endl;
     std::cout << "g: " << g << std::endl;
     Eigen::RowVectorXd A_barrier = L_g * Jlin;   // 1×n
-    double b_barrier = -(L_g * (dJlin * dq)).value() - L_f - m_alpha * m_h;  // scalar
+    double b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_alpha * m_h;  // scalar
 
     // Eigen::RowVectorXd A_barrier = -Theta * Jd;   // 1×n  (note minus)
     // double             b_barrier = -Jd.dot(dq) + m_alpha * m_h;
@@ -695,7 +725,7 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
     // Note: CI is transposed in the solve_quadprog call, so we append a row
     int n_cols = m_CI.cols();
     m_CI.col(n_cols - 1).setZero();
-    m_CI.col(n_cols - 1).segment(0, m_nax) = A_barrier.transpose();  // A_barrier is 1×nax
+    m_CI.col(n_cols - 1).segment(0, m_nax) = -A_barrier.transpose();  // A_barrier is 1×nax
     ci0(ci0.size() - 1) = b_barrier;
     std::cout << "CI and ci0 updated" << std::endl;
     std::cout << "A_barrier: " << A_barrier << std::endl;

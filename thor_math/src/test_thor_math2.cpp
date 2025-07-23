@@ -104,7 +104,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
     std::cout << "Setting up ThorQP with " << nax << " joints and " << nc << " intervals." << std::endl;
     
     qp.setIntervals(nc, nax, horizon, st);
-    qp.setCBFParameters(2.5,0.15,0.25,3.0);
+    qp.setCBFParameters(2.5,0.15,0.25,0.0);
     qp.setConstraints(Eigen::VectorXd::Constant(nax, 20.0),   // qmax
                         Eigen::VectorXd::Constant(nax, -20.0),  // qmin
                         Eigen::VectorXd::Constant(nax, 20.0),   // Dqmax
@@ -112,7 +112,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
                         Eigen::VectorXd::Constant(nax, 10.0)); // tau_max
 
     std::cout << "Setting weight functions." << std::endl;
-    qp.setWeigthFunction(0.0, 0.0, 0.0, 1e+2, 1e+5);
+    qp.setWeigthFunction(1.0e-03, 1.0e-09, 0.0, 1e+2, 1e+3);
 
     qp.activatePositionBounds(true);
     qp.activateTorqueBounds(false);
@@ -133,7 +133,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
         Eigen::VectorXd x0 = Eigen::VectorXd::Zero(2 * nax);
         x0.segment(0, nax) =q_init; // Initial position
         std::cout << "Initial state set to:\n" << x0.transpose() << std::endl;
-       x0.tail(nax) << 0.1,0.1,0.1,0.1,0.1,0.1; // Initial velocity
+       //x0.tail(nax) << 0.1,0.1,0.1,0.1,0.1,0.1; // Initial velocity
         qp.setInitialState(x0);
          std::cout << "Setting initial state." << std::endl;
         std::cout << "Initial state: " << qp.getState().transpose() << std::endl;
