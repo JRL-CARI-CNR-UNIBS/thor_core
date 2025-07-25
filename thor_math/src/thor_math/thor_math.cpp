@@ -631,22 +631,21 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
   //   }
   // }
 
-
   // CBF constraint
   if (m_use_cbf)
   {
     const Eigen::VectorXd &q  = x0.head(m_nax);
     const Eigen::VectorXd &dq = x0.tail(m_nax);
-    std::cout << "q: " << q.transpose() << std::endl;
-    std::cout << "dq: " << dq.transpose() << std::endl;
+    // std::cout << "q: " << q.transpose() << std::endl;
+    // std::cout << "dq: " << dq.transpose() << std::endl;
     // std::cout << "CBF constraint" << std::endl;
     // Pinocchio kinematics 
     pinocchio::forwardKinematics(m_model, m_data, q, dq);
     pinocchio::updateFramePlacements(m_model, m_data);
     // std::cout << "Pinocchio kinematics done" << std::endl;
     Eigen::Vector3d p_r   = m_data.oMf[frameId].translation();   // robot pos
-    std::cout << "Robot position: " << p_r.transpose() << std::endl;
-    std::cout << "Human position: " << p_h.transpose() << std::endl;
+    // std::cout << "Robot position: " << p_r.transpose() << std::endl;
+    // std::cout << "Human position: " << p_h.transpose() << std::endl;
     Eigen::Vector3d d_vec = p_r - p_h;                            // to human
     double          d     = std::max(1e-6, d_vec.norm());           // avoid 0
     Eigen::Vector3d e_rh  = d_vec / d;       
@@ -692,13 +691,13 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
                 + m_T_r * vh_proj;
 
     m_h = d - d_max;   // barrier value
-    std::cout << "Barrier value: " << m_h << std::endl;
-    std::cout << "Distance to human: " << d << std::endl;
-    std::cout << "d_max: " << d_max << std::endl;
-    std::cout << "v_rel: " << v_rel << std::endl;
-    std::cout << "vh_proj: " << vh_proj << std::endl;
-    std::cout << "Jlin: " << Jlin << std::endl;
-    std::cout << "dJlin: " << dJlin << std::endl;
+    // std::cout << "Barrier value: " << m_h << std::endl;
+    // std::cout << "Distance to human: " << d << std::endl;
+    // std::cout << "d_max: " << d_max << std::endl;
+    // std::cout << "v_rel: " << v_rel << std::endl;
+    // std::cout << "vh_proj: " << vh_proj << std::endl;
+    // std::cout << "Jlin: " << Jlin << std::endl;
+    // std::cout << "dJlin: " << dJlin << std::endl;
     double theta = v_rel / m_a_s + m_T_r + vh_proj / m_a_s;
 
     std::pair<Eigen::Vector2d, Eigen::Matrix<double, 2, 3>> state_derivative = range_state_derivative(d_vec, v_r);
@@ -712,9 +711,9 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
     // Lie derivatives                 
     double L_f = (partial_h_on_x.dot(f));  // 1×1
     Eigen::RowVectorXd L_g = partial_h_on_x * g;
-    std::cout << "L_g: " << L_g << std::endl;
-    std::cout << "partial_h_on_x: " << partial_h_on_x << std::endl;
-    std::cout << "g: " << g << std::endl;
+    // std::cout << "L_g: " << L_g << std::endl;
+    // std::cout << "partial_h_on_x: " << partial_h_on_x << std::endl;
+    // std::cout << "g: " << g << std::endl;
     Eigen::RowVectorXd A_barrier = L_g * Jlin;   // 1×n
     double b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_alpha * m_h;  // scalar
 
@@ -727,18 +726,21 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
     m_CI.col(n_cols - 1).setZero();
     m_CI.col(n_cols - 1).segment(0, m_nax) = -A_barrier.transpose();  // A_barrier is 1×nax
     ci0(ci0.size() - 1) = b_barrier;
-    std::cout << "CI and ci0 updated" << std::endl;
-    std::cout << "A_barrier: " << A_barrier << std::endl;
-    std::cout << "b_barrier: " << b_barrier << std::endl;
+    // std::cout << "CI and ci0 updated" << std::endl;
+    // std::cout << "A_barrier: " << A_barrier << std::endl;
+    // std::cout << "b_barrier: " << b_barrier << std::endl;
   }
   
   Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
   std::cout << "Quadratic program solved" << std::endl;
+  std::cout << "M_CI size: " << m_CI.rows() << " x " << m_CI.cols() << std::endl;
+  std::cout << "m_ci0 size: " << m_ci0.size() << " x 1" << std::endl;
   next_acc=m_sol.head(m_nax);
-  std::cout << "Next acceleration: " << next_acc.transpose() << std::endl;
+  // std::cout << "Next acceleration: " << next_acc.transpose() << std::endl;
   next_scaling=m_sol (m_nax*m_nc);
   m_prediction_vel = m_velocity_forced_resp*m_sol.head(m_nc*m_nax)+m_velocity_free_resp*x0.tail(m_nax);
   m_prediction_pos = m_position_forced_resp*m_sol.head(m_nc*m_nax)+m_position_free_resp*x0;
+  std::cout << "Predicted position: " << m_prediction_pos.transpose() << std::endl;
   // std::cout << "Solution computed" << std::endl;
   return m_h;
 }

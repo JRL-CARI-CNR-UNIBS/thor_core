@@ -104,7 +104,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
     std::cout << "Setting up ThorQP with " << nax << " joints and " << nc << " intervals." << std::endl;
     
     qp.setIntervals(nc, nax, horizon, st);
-    qp.setCBFParameters(2.5,0.15,0.25,0.0);
+    qp.setCBFParameters(2.5,0.15,0.25,5.0);
     qp.setConstraints(Eigen::VectorXd::Constant(nax, 20.0),   // qmax
                         Eigen::VectorXd::Constant(nax, -20.0),  // qmin
                         Eigen::VectorXd::Constant(nax, 20.0),   // Dqmax
@@ -150,7 +150,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
         Eigen::Vector3d p_h; // Human position
         Eigen::Vector3d vh;
         size_t frameId = model.getFrameId("wrist_3_joint"); // Example frame ID"); 
-
+        std::cout << "Frame ID: " << frameId << std::endl;
         // Run constrained QP solution
         Eigen::VectorXd prediction_time = qp.getPredictionTimeInstant();
         int iter = 0;
@@ -195,7 +195,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
             // std::cout << "Next Acceleration: " << next_acc.transpose() << std::endl;
             // std::cout << "Next Scaling: " << scaling << std::endl;
             qp.updateState(next_acc);
-            // std::cout << "Updated pos: " << qp.getState().head(nax).transpose() << std::endl;
+            std::cout << "Updated pos: " << qp.getState().head(nax).transpose() << std::endl;
             // std::cout << "targetq: " << next_targetQ.transpose() << std::endl;
            double eps = 1e-6;
             double mean_pos_error = (
