@@ -53,7 +53,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
 {
   double radius = 0.3;               // Smaller, so stays inside workspace
   double omega = 2*M_PI/5.0;
-  double center_x = 0.8;             // Further in front of the robot
+  double center_x = 0.95;             // Further in front of the robot
   double center_y = 0.3;
   double center_z = 0.65;             // Higher up
 
@@ -70,8 +70,9 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
  int main(int argc, char **argv){
 
     using namespace thor::math;
-
-  double mean_pos_error = 0.0;   
+    double toll = 0.001; // Tolerance for convergence
+    double mean_pos_error = 10.0;
+    Eigen::VectorXd rel_error;
 
     std::ofstream logfile("/home/galileo/projects/thor_ws/src/thor_core/thor_math/trajectory_log.csv");
     logfile << "time,q1,q2,q3,q4,q5,q6,ph_x,ph_y,ph_z, h\n";
@@ -112,7 +113,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
                         Eigen::VectorXd::Constant(nax, 10.0)); // tau_max
 
     std::cout << "Setting weight functions." << std::endl;
-    qp.setWeigthFunction(1.0e-03, 1.0e-09, 0.0, 1e+2, 1e+3);
+    qp.setWeigthFunction(1e-04, 1e-09, 0.0, 1e+2, 1e+4);
 
     qp.activatePositionBounds(true);
     qp.activateTorqueBounds(false);
@@ -156,9 +157,9 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
         int iter = 0;
         double nominal_t = 0.0;
         double t= 0.0;
-
+        
         std::cout << "starting ... " << std::endl;
-        while (iter<((T+0.1)/st))
+        while (mean_pos_error > toll && iter < 10000)
         {
 
             if (qp.needUpdate()) 
@@ -169,11 +170,10 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
             nominal_t+=scaling*st;
             t+=st;
             for (unsigned int iax = 0; iax < nax; iax++) {
-            // double q_init = x0(iax);
-            // double q_final = x0(iax) + 1.0; // Example goal
 
-            double pos, vel, acc;
-            // Current time step for this joint
+              double pos, vel, acc;
+
+              // Current time step for this joint
             cubic_spline(nominal_t, T, q_init(iax), q_final(iax), 0, 0, pos, vel, acc);
             next_targetQ(iax) = pos;
             targetDq(iax) = vel;
@@ -197,11 +197,14 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
             qp.updateState(next_acc);
             std::cout << "Updated pos: " << qp.getState().head(nax).transpose() << std::endl;
             // std::cout << "targetq: " << next_targetQ.transpose() << std::endl;
-           double eps = 1e-6;
-            double mean_pos_error = (
-                (qp.getState().head(nax) - next_targetQ).cwiseAbs().array()
+            double eps = 1e-6;
+            mean_pos_error = (
+                ((qp.getState().head(nax) - next_targetQ).cwiseAbs().array())
                 / (next_targetQ.cwiseAbs().array() + eps)
             ).mean() * 100.0;
+            
+            rel_error = ((qp.getState().head(nax) - next_targetQ).cwiseAbs().array())
+                 / (q_final.cwiseAbs().array() + eps);
 
           
             logfile << t;
@@ -212,7 +215,16 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
     }
       std::cout << "Mean position error: " << mean_pos_error << std::endl;
       std::cout << "Updated_vel: " << qp.getState().tail(nax).transpose() << std::endl;
-      std::cout << "targetDq: " << targetDq.transpose() << std::endl;
+      std::cout << "target q: " << next_targetQ.transpose() << std::endl;
+      std::cout << "Relative error: " << rel_error.transpose() << std::endl;
+      if (iter >= 10000)
+      {
+        std::cout << "Maximum iterations reached without convergence." << std::endl;
+      }
+      else
+      {
+        std::cout << "Convergence achieved." << std::endl;
+      }
     logfile.close();
     return 0;  
     }
