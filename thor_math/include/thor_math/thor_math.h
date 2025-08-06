@@ -129,11 +129,12 @@ protected:
   void get_d_min(const double& v_h, const double& v_r, double& d_min);
   void compute_h(const double& v_h, const double& v_r, const double& d, double& h);
   void compute_theta(const double& v_h, const double& v_r, double& theta);
+  
   virtual void computeActualMatrices( const Eigen::VectorXd& targetDq,
                               const Eigen::VectorXd& next_targetQ,
                               const double& target_scaling,
                               const Eigen::VectorXd& x0);
-int id = 0;
+  int id = 0;
 public:
 
   ThorQP& operator=(const ThorQP& other) {

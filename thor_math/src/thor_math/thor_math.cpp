@@ -345,486 +345,486 @@ namespace math
   m_are_matrices_updated=false;
 }
 
-void ThorQP::setFrameIds(const std::vector<unsigned int>& frameIds)
-{
-  m_frameIds = frameIds;
-  m_are_matrices_updated = false;
-}
-
-void ThorQP::updateMatrices()
-{
-  m_CE.resize((m_nax+1)*m_nc,0);
-  m_ce0.resize(0);
-  if (m_use_input_blocking)
-    quadraticControlIntervals(m_control_horizon_time,m_nc,m_dt,m_control_intervals,m_prediction_time);
-  else
-    constantControlIntervals(m_control_horizon_time,m_nc,m_dt,m_control_intervals,m_prediction_time);
-  computeEvolutionMatrix(m_prediction_time,m_control_intervals,m_nax,m_free_response,m_forced_response);
-  computeJerkEvolutionMatrix(m_prediction_time,m_control_intervals,m_nax,m_jerk_free_response,m_jerk_forced_response);
-  thor::math::splitResponses(m_free_response,m_velocity_free_resp,m_position_free_resp,m_forced_response,m_velocity_forced_resp,m_position_forced_resp,m_nax);
-  m_lb.resize(m_nc*(m_nax+1));
-  m_ub.resize(m_nc*(m_nax+1));
-  for (unsigned int ic=0;ic<m_nc;ic++)
+  void ThorQP::setFrameIds(const std::vector<unsigned int>& frameIds)
   {
-    //// std::cout << "DDqMAX= "<<m_DDqmax << std::endl;
-    m_lb.segment(ic*m_nax,m_nax) = -m_DDqmax;
-    m_ub.segment(ic*m_nax,m_nax) =  m_DDqmax;
-  }
-  m_lb.tail(m_nc).setConstant(0.05);
-  m_ub.tail(m_nc).setConstant(1.01);
-
-  /*
-   * I u > lb    ->  I*u+lb>0
-   * I u < ub    -> -I*u+ub>0
-   * Fv u +fv*v0 > -Dqmax    ->   Fv*u+fv*v0+Dqmax>0
-   * Fv u +fv*v0 <  Dqmax    ->  -Fv*u-fv*v0+Dqmax>0
-   * 
-   * A^T =[I            -I          Fv^T    -Fv^T ]
-   *       nc*(nax+1)   nc*(nax+1)  nc*nax  nc*nax
-   * 
-   * 
-   */
-  m_CI.resize(m_nc*(m_nax+1),  4*m_nc*m_nax+2*m_nc);
-  m_CI.setZero();
-  m_CI.block(0,0,m_nc*(m_nax+1),m_nc*(m_nax+1)).setIdentity();
-  m_CI.block(0,m_nc*(m_nax+1),m_nc*(m_nax+1),m_nc*(m_nax+1))=-m_CI.block(0,0,m_nc*(m_nax+1),m_nc*(m_nax+1));
-  m_CI.block(0,2*m_nc*(m_nax+1),           m_nc*m_nax,m_nc*m_nax)=m_velocity_forced_resp.transpose();
-  m_CI.block(0,2*m_nc*(m_nax+1)+m_nc*m_nax,m_nc*m_nax,m_nc*m_nax)=-m_velocity_forced_resp.transpose();
-  m_ci0.resize(m_CI.cols());
-  m_ci0.setZero();
-  m_ci0.head(m_nc*(m_nax+1))=-m_lb; 
-  m_ci0.segment(m_nc*(m_nax+1),m_nc*(m_nax+1))=m_ub;
-  for (unsigned int ic=0;ic<m_nc;ic++)
-  {
-    m_ci0.segment(2*m_nc*(m_nax+1)           +ic*m_nax,m_nax)=m_Dqmax;  // A^T*u>-Dqmax -> A^T*u+Dqmax>0
-    m_ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc+ic*m_nax,m_nax)=m_Dqmax; // A^T*u<Dqmax ->  A^T*u-Dqmax<0 ->  -A^T*u+Dqmax>0
+    m_frameIds = frameIds;
+    m_are_matrices_updated = false;
   }
 
-  /*
-   * POSITION BOUNDS
-   *
-   * Fp u + fp*[p0;v0] > qmin ->  Fp*u+fp*[p0;v0]-qmin>0
-   * Fp u + fp*[p0;v0] < qmax -> -Fp*u-fp*[p0;q0]+qmax>0
-   *
-   * INVARIANCE CONSTRAINTS
-   *
-   * K=0.99*DDqmax/Dqmax
-   *  (K*Fp+Fv)*u+(K*fp+fv)*[p0;v0]-K*qmin>0
-   * -(K*Fp+Fv)*u-(K*fp+fv)*[p0;v0]+K*qmax>0
-   *
-   *
-   * A^T = [ A^T   Fp^T   -Fp^T   (K*Fp+Fv)^T   -(K*Fp+Fv)^T ]
-   *              nc*nax  nc*nax    nc*nax          nc*nax
-   *
-   */
-
-  if (m_are_position_bounds_active)
+  void ThorQP::updateMatrices()
   {
-    m_CI.conservativeResize(m_nc*(m_nax+1),  8*m_nc*m_nax+2*m_nc);
-    m_CI.block(0,4*m_nc*m_nax+2*m_nc,m_nc*(m_nax+1),4*m_nc*m_nax).setZero();
-
-    m_CI.block(0,4*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=m_position_forced_resp.transpose();
-    m_CI.block(0,5*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=-m_position_forced_resp.transpose();
-
-    m_ci0.conservativeResize(8*m_nc*m_nax+2*m_nc);
-    m_ci0.tail(4*m_nc*m_nax).setZero();
+    m_CE.resize((m_nax+1)*m_nc,0);
+    m_ce0.resize(0);
+    if (m_use_input_blocking)
+      quadraticControlIntervals(m_control_horizon_time,m_nc,m_dt,m_control_intervals,m_prediction_time);
+    else
+      constantControlIntervals(m_control_horizon_time,m_nc,m_dt,m_control_intervals,m_prediction_time);
+    computeEvolutionMatrix(m_prediction_time,m_control_intervals,m_nax,m_free_response,m_forced_response);
+    computeJerkEvolutionMatrix(m_prediction_time,m_control_intervals,m_nax,m_jerk_free_response,m_jerk_forced_response);
+    thor::math::splitResponses(m_free_response,m_velocity_free_resp,m_position_free_resp,m_forced_response,m_velocity_forced_resp,m_position_forced_resp,m_nax);
+    m_lb.resize(m_nc*(m_nax+1));
+    m_ub.resize(m_nc*(m_nax+1));
     for (unsigned int ic=0;ic<m_nc;ic++)
     {
-      m_ci0.segment(4*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)=-m_qmin;
-      m_ci0.segment(5*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_qmax;
+      //// std::cout << "DDqMAX= "<<m_DDqmax << std::endl;
+      m_lb.segment(ic*m_nax,m_nax) = -m_DDqmax;
+      m_ub.segment(ic*m_nax,m_nax) =  m_DDqmax;
     }
+    m_lb.tail(m_nc).setConstant(0.05);
+    m_ub.tail(m_nc).setConstant(1.01);
 
-    Eigen::MatrixXd Kinv(m_nc*m_nax,m_nc*m_nax);
-    Kinv.setZero();
-    Eigen::MatrixXd Kinv_block=0.99*(m_DDqmax.cwiseQuotient(m_Dqmax)).asDiagonal();
+    /*
+    * I u > lb    ->  I*u+lb>0
+    * I u < ub    -> -I*u+ub>0
+    * Fv u +fv*v0 > -Dqmax    ->   Fv*u+fv*v0+Dqmax>0
+    * Fv u +fv*v0 <  Dqmax    ->  -Fv*u-fv*v0+Dqmax>0
+    * 
+    * A^T =[I            -I          Fv^T    -Fv^T ]
+    *       nc*(nax+1)   nc*(nax+1)  nc*nax  nc*nax
+    * 
+    * 
+    */
+    m_CI.resize(m_nc*(m_nax+1),  4*m_nc*m_nax+2*m_nc);
+    m_CI.setZero();
+    m_CI.block(0,0,m_nc*(m_nax+1),m_nc*(m_nax+1)).setIdentity();
+    m_CI.block(0,m_nc*(m_nax+1),m_nc*(m_nax+1),m_nc*(m_nax+1))=-m_CI.block(0,0,m_nc*(m_nax+1),m_nc*(m_nax+1));
+    m_CI.block(0,2*m_nc*(m_nax+1),           m_nc*m_nax,m_nc*m_nax)=m_velocity_forced_resp.transpose();
+    m_CI.block(0,2*m_nc*(m_nax+1)+m_nc*m_nax,m_nc*m_nax,m_nc*m_nax)=-m_velocity_forced_resp.transpose();
+    m_ci0.resize(m_CI.cols());
+    m_ci0.setZero();
+    m_ci0.head(m_nc*(m_nax+1))=-m_lb; 
+    m_ci0.segment(m_nc*(m_nax+1),m_nc*(m_nax+1))=m_ub;
     for (unsigned int ic=0;ic<m_nc;ic++)
     {
-      Kinv.block(ic*m_nax,ic*m_nax,m_nax,m_nax)=Kinv_block;
-      m_ci0.segment(6*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)=-Kinv_block*m_qmin;
-      m_ci0.segment(7*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= Kinv_block*m_qmax;
+      m_ci0.segment(2*m_nc*(m_nax+1)           +ic*m_nax,m_nax)=m_Dqmax;  // A^T*u>-Dqmax -> A^T*u+Dqmax>0
+      m_ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc+ic*m_nax,m_nax)=m_Dqmax; // A^T*u<Dqmax ->  A^T*u-Dqmax<0 ->  -A^T*u+Dqmax>0
     }
-    m_CI.block(0,6*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=(Kinv*m_position_forced_resp+m_velocity_forced_resp).transpose();
-    m_CI.block(0,7*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=-(Kinv*m_position_forced_resp+m_velocity_forced_resp).transpose();
 
-    m_invariance_free_resp=Kinv*m_position_free_resp;
+    /*
+    * POSITION BOUNDS
+    *
+    * Fp u + fp*[p0;v0] > qmin ->  Fp*u+fp*[p0;v0]-qmin>0
+    * Fp u + fp*[p0;v0] < qmax -> -Fp*u-fp*[p0;q0]+qmax>0
+    *
+    * INVARIANCE CONSTRAINTS
+    *
+    * K=0.99*DDqmax/Dqmax
+    *  (K*Fp+Fv)*u+(K*fp+fv)*[p0;v0]-K*qmin>0
+    * -(K*Fp+Fv)*u-(K*fp+fv)*[p0;v0]+K*qmax>0
+    *
+    *
+    * A^T = [ A^T   Fp^T   -Fp^T   (K*Fp+Fv)^T   -(K*Fp+Fv)^T ]
+    *              nc*nax  nc*nax    nc*nax          nc*nax
+    *
+    */
 
-    m_invariance_free_resp.rightCols(m_nax)+=m_velocity_free_resp;
-  }
-
-  /*
-   * H u + b > -tau_max    ->  H*u+b+tau_max>0
-   * H u + b <  tau_max    -> -H*u-b+tau_max>0
-   * A^T =[H            -H          ]
-   *       nc*(nax+1)   nc*(nax+1)
-   *
-   *
-   */
-//   if (m_are_torque_bounds_active)
-//   {
-//     m_CI.conservativeResize(m_nc*(m_nax+1),  10*m_nc*m_nax+2*m_nc);
-//     m_CI.block(0,8*m_nc*m_nax+2*m_nc,m_nc*(m_nax+1),2*m_nc*m_nax).setZero();
-
-// //    m_CI.block(0,8*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=m_position_forced_resp.transpose();
-// //    m_CI.block(0,9*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=-m_position_forced_resp.transpose();
-
-//     m_ci0.conservativeResize(10*m_nc*m_nax+2*m_nc);
-//     m_ci0.tail(2*m_nc*m_nax).setZero();
-//     for (unsigned int ic=0;ic<m_nc;ic++)
-//     {
-//       m_ci0.segment(8*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
-//       m_ci0.segment(9*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
-//     }
-//   }
-  // 1 constraint for each frame - human point couple (TODO) and prediction interval
-  if (m_use_cbf)
-  {
-    int old_cols=m_CI.cols();
-    m_CI.conservativeResize(m_CI.rows(), m_CI.cols()+m_frameIds.size()*m_nc);
-    m_ci0.conservativeResize(m_ci0.size() +m_frameIds.size()*m_nc);
-
-    m_CI.block(0,old_cols, m_CI.rows(),+m_frameIds.size()*m_nc).setZero();
-    m_ci0.tail(m_frameIds.size()*m_nc).setZero();
-  }
-
-  m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
-  m_next_position_free_resp=m_position_free_resp.topRows(m_nax);
-  
-  // forced'*free    to be multiplied by v0
-  m_f_vel.resize((m_nax+1)*m_nc,m_nax);
-  m_f_vel.setZero();
-  m_f_vel.topRows(m_nc*m_nax)=m_velocity_forced_resp.transpose()*m_velocity_free_resp;
-  
-  // m_lambda_clik* forced'*free  to be multiplied by x0 (works only on the first step)
-  m_f_pos.resize((m_nax+1)*m_nc,2*m_nax);
-  m_f_pos.setZero();
-  m_f_pos.topRows(m_nc*m_nax)=m_lambda_clik*m_next_position_forced_resp.transpose()*m_next_position_free_resp;
-
-  // m_lambda_scaling* ones to be multiplied by sref
-  m_f_scaling.resize((m_nax+1)*m_nc);
-  m_f_scaling.setZero();
-  m_f_scaling.tail(m_nc).setConstant(-m_lambda_scaling);
-  
-  m_do_scaling.resize(m_nax*m_nc,m_nc);
-  m_do_scaling.setZero();
-  for (unsigned int ic=0;ic<m_nc;ic++)
-    m_do_scaling.block(ic*m_nax,ic,m_nax,1).setOnes();
-  
-  m_H_fixed.resize((m_nax+1)*m_nc,(m_nax+1)*m_nc);
-  m_H_fixed.setZero();
-
-  m_H_variable.resize((m_nax+1)*m_nc,(m_nax+1)*m_nc);
-  m_H_variable.setZero();
-  
-  m_H_fixed.block(0,0,m_nax*m_nc,m_nax*m_nc) =  m_velocity_forced_resp.transpose()*m_velocity_forced_resp+
-                                                m_lambda_acc*Eigen::MatrixXd::Identity(m_nax*m_nc,m_nax*m_nc) +
-                                                m_lambda_clik*m_next_position_forced_resp.transpose()*m_next_position_forced_resp;
-  m_H_fixed.block(m_nax*m_nc,m_nax*m_nc,m_nc,m_nc)  =Eigen::MatrixXd::Identity(m_nc,m_nc)*m_lambda_scaling;
-  
-  m_H.resize((m_nax+1)*m_nc,(m_nax+1)*m_nc);
-  m_f.resize((m_nax+1)*m_nc);
-  m_H.setZero();
-  m_f.setZero();
-  
-  m_prediction_pos.resize(m_nax*m_nc);
-  m_prediction_vel.resize(m_nax*m_nc);
-}
-
-void ThorQP::computeActualMatrices ( const Eigen::VectorXd& targetDq, const Eigen::VectorXd& next_targetQ, const double& target_scaling, const Eigen::VectorXd& x0 )
-{
-  // std::cout << "Computing actual matrices." << std::endl;
-  // std::cout << targetDq   << std::endl;
-  // std::cout << m_do_scaling << std::endl;
-  Eigen::MatrixXd DQT=targetDq.asDiagonal()*m_do_scaling;
-  // std::cout << "1" << std::endl;
-  m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc)=-m_velocity_forced_resp.transpose()*DQT;
-  // std::cout << "2" << std::endl;
-  m_H_variable.block(m_nax*m_nc,0,m_nc,m_nax*m_nc)=m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc).transpose();
-  // std::cout << "3" << std::endl;
-  m_H_variable.block(m_nax*m_nc,m_nax*m_nc,m_nc,m_nc)=DQT.transpose()*DQT;
-  // std::cout << "x0: "<<x0.transpose() << std::endl;
-  m_f = m_f_vel*x0.tail(m_nax)+m_f_pos*x0+m_f_scaling*target_scaling;
-  // std::cout << "4" << std::endl;
-  m_f.head(m_nc*m_nax) -= m_lambda_clik* (m_next_position_forced_resp.transpose()*next_targetQ).col(0);
-  
-  m_f.tail(m_nc) -= DQT.transpose()*m_velocity_free_resp*x0.tail(m_nax);
-
-  // if (0)
-  // {
-  //   for (unsigned int ic=0; ic<m_nc; ic++)
-  //   {
-  //     Eigen::VectorXd qc  = m_prediction_pos.block(ic*m_nax,0,m_nax,1);
-  //     Eigen::VectorXd Dqc = m_prediction_vel.block(ic*m_nax,0,m_nax,1);
-      
-  //     // Eigen::VectorXd non_linear_part_torque=m_chain->getJointTorqueNonLinearPart(qc,Dqc);
-  //     // Eigen::MatrixXd inertia_matrix = m_chain->getJointInertia(qc);
-      
-  //     m_H_variable.block(ic*m_nax,ic*m_nax,m_nax,m_nax) += m_lambda_tau * inertia_matrix.transpose()*inertia_matrix;
-  //     m_f.block(ic*m_nax,0,m_nax,1)                     += m_lambda_tau * non_linear_part_torque.transpose()*inertia_matrix;
-  //   }
-  // }
-
-  m_H_variable.block(0,0,m_nax*m_nc,m_nax*m_nc) += m_lambda_jerk * m_jerk_forced_response.transpose()*m_jerk_forced_response;
-  m_f.segment(0,m_nax*m_nc)                     += m_lambda_jerk * ((m_jerk_free_response*(m_sol.head(m_nax))).transpose()*m_jerk_forced_response);
-
-  m_H=m_H_fixed+m_H_variable;
-  
-}
-
-void ThorQP::setInitialState ( const Eigen::VectorXd& x0 )
-{
-  assert(x0.size()==m_nax*2);
-  // std::cout << "Setting initial state." << std::endl;
-  m_state=x0;
-  // std::cout << "Initial state: " << m_state.transpose() << std::endl;
-  for (unsigned int ic=0; ic<m_nc; ic++)
-  {
-    // std::cout << "Setting prediction pos and vel for control interval " << ic << std::endl;
-    m_prediction_pos.block(ic*m_nax,0,m_nax,1)=x0.head(m_nax);
-    m_prediction_vel.block(ic*m_nax,0,m_nax,1).setZero();
-  }
-  
-}
-
-void ThorQP::updateState ( const Eigen::VectorXd& next_acc )
-{
-  m_state.head(m_nax)+=(m_state.tail(m_nax)+0.5*next_acc*m_dt)*m_dt;
-  m_state.tail(m_nax)+=next_acc*m_dt;
-}
-
-Eigen::VectorXd ThorQP::getState()
-{
-  return m_state;
-}
-
-double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
-                                          const Eigen::VectorXd& next_targetQ, 
-                                          const double& target_scaling, 
-                                          const Eigen::VectorXd& x0,
-                                          const Eigen::Vector3d &vh,
-                                          const Eigen::Vector3d &p_human, 
-                                          Eigen::VectorXd& next_acc, 
-                                          double& next_scaling)
-{
-  // Build cost matrices and baseline inequality vector
-  computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
-  Eigen::VectorXd ci0=m_ci0;
- 
-  int n_cols = m_CI.cols();
-
-  // Velocity bounds
-  ci0.segment(2*m_nc*(m_nax+1)           ,m_nax*m_nc)+=m_velocity_free_resp*x0.tail(m_nax); // vel lower bounds
-  ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc,m_nax*m_nc)-=m_velocity_free_resp*x0.tail(m_nax); // vel upper bounds
-  // Position bounds
-  if (m_are_position_bounds_active)
-  {
-    ci0.segment(2*m_nc*(m_nax+1)+2*m_nax*m_nc,m_nax*m_nc)+=m_position_free_resp*x0; // pos lower bounds
-    ci0.segment(2*m_nc*(m_nax+1)+3*m_nax*m_nc,m_nax*m_nc)-=m_position_free_resp*x0; // pos upper bounds
-    ci0.segment(2*m_nc*(m_nax+1)+4*m_nax*m_nc,m_nax*m_nc)+=m_invariance_free_resp*x0; // invariance lower constraint
-    ci0.segment(2*m_nc*(m_nax+1)+5*m_nax*m_nc,m_nax*m_nc)-=m_invariance_free_resp*x0; // invariance upper constraint
-  }
-  // if  (m_are_torque_bounds_active)
-  // {
-  //   for (unsigned int idx=0;idx<m_nc;idx++)
-  //   {
-  //     // m_CI.block(idx*m_nc,8*m_nc*m_nax+2*m_nc,m_nax,m_nax)=m_chain->getJointInertia(m_prediction_pos.segment(idx*m_nax,m_nax)); // update torque constraints
-  //     Eigen::VectorXd torque_nonlinear_part=m_chain->getJointTorqueNonLinearPart(m_prediction_pos.segment(idx*m_nax,m_nax),m_prediction_vel.segment(idx*m_nax,m_nax));
-  //     ci0.segment(2*m_nc*(m_nax+1)+6*m_nax*m_nc+idx*m_nc,m_nax)+=torque_nonlinear_part; // torque lower bounds
-  //     ci0.segment(2*m_nc*(m_nax+1)+7*m_nax*m_nc+idx*m_nc,m_nax)-=torque_nonlinear_part; // torque upper bounds
-  //   }
-  // }
-
-  // CBF constraint
-  if (m_use_cbf)
-  {
-    Eigen::RowVector2d f, partial_h_on_x;
-    Eigen::Vector3d p_r, d_vec, e_rh, v_r, p_h;
-    Eigen::RowVectorXd L_g, A_barrier;
-
-    double d, v_rel, vh_proj, d_min, theta, L_f, b_barrier;
-
-    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> J, dJ;
-    J.resize(m_nax, m_model.nv);
-    dJ.resize(m_nax, m_model.nv);
-
-    Eigen::Matrix<double,3,Eigen::Dynamic> Jlin, dJlin;
-    Eigen::Matrix<double, 2, 3> g;
-    std::pair<Eigen::Vector2d, Eigen::Matrix<double, 2, 3>> state_derivative;
-    double h_min = 1000.0; // Minimum value for the barrier function
-
-    for (size_t j = 0; j < m_frameIds.size(); ++j)
+    if (m_are_position_bounds_active)
     {
-      size_t frameId = m_frameIds[j];
-      for ( size_t i = 0; i< m_nc; i++ )
+      m_CI.conservativeResize(m_nc*(m_nax+1),  8*m_nc*m_nax+2*m_nc);
+      m_CI.block(0,4*m_nc*m_nax+2*m_nc,m_nc*(m_nax+1),4*m_nc*m_nax).setZero();
+
+      m_CI.block(0,4*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=m_position_forced_resp.transpose();
+      m_CI.block(0,5*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=-m_position_forced_resp.transpose();
+
+      m_ci0.conservativeResize(8*m_nc*m_nax+2*m_nc);
+      m_ci0.tail(4*m_nc*m_nax).setZero();
+      for (unsigned int ic=0;ic<m_nc;ic++)
       {
-        // p_h prediction
-        for (size_t k=0; k< 3; k++)
-        {
-          p_h(k) = p_human(k) + vh(k) * m_prediction_time(i); // human position at time t
-        }
-        const Eigen::VectorXd &q  = m_prediction_pos.segment(m_nax*i, m_nax);
-        const Eigen::VectorXd &dq = m_prediction_vel.segment(m_nax*i, m_nax);
-        // std::cout << "q: " << q.transpose() << std::endl;
-        // std::cout << "dq: " << dq.transpose() << std::endl;
-        // std::cout << "CBF constraint" << std::endl;
-        // Pinocchio kinematics 
-        //pinocchio::forwardKinematics(m_model, m_data, q, dq);
-        pinocchio::computeForwardKinematicsDerivatives(m_model, m_data, q, dq, 0.0*dq);
-        pinocchio::updateFramePlacements(m_model, m_data);
-        // std::cout << "Pinocchio kinematics done" << std::endl;
-        p_r   = m_data.oMf[frameId].translation();   // robot pos
-        // std::cout << "Robot position: " << p_r.transpose() << std::endl;
-        // std::cout << "Human position: " << p_h.transpose() << std::endl;
-        d_vec = p_r - p_h;                            // to human
-        d     = std::max(1e-6, d_vec.norm());           // avoid 0
-        e_rh  = d_vec / d;       
-
-        vh_proj = e_rh.dot(vh);                       // unit dir
-        
-        auto twist =  pinocchio::getFrameVelocity(m_model, m_data, frameId, pinocchio::LOCAL_WORLD_ALIGNED);
-        v_r = twist.linear();                // robot linear velocity
-        v_rel = v_r.dot(e_rh);                  // robot velocity
-        
-        // std::cout << "Distance to human: " << d << std::endl;
-        // Jacobian (linear part) -----------------------------------------------
-        // std::cout << "q:" << q.transpose() << std::endl;
-        pinocchio::computeFrameJacobian(m_model, 
-                                        m_data,
-                                        q,
-                                        frameId,
-                                        pinocchio::LOCAL_WORLD_ALIGNED, 
-                                        J);
-        Jlin = J.topRows<3>();   // 3×n
-        //Eigen::RowVectorXd Jd = e_rh.transpose() * Jlin;                 // 1×n
-
-        // computeFrameJacobianDot(m_model,
-        //         m_data,
-        //         frameId,
-        //         q,
-        //         dq,
-        //         pinocchio::LOCAL_WORLD_ALIGNED,
-        //         m_dt, // numerical differentiation step
-        //         dJ
-        //     );
-        pinocchio::computeJointJacobiansTimeVariation(m_model, 
-                                        m_data, 
-                                        q, 
-                                        dq);
-        pinocchio::getFrameJacobianTimeVariation(m_model, m_data, frameId, pinocchio::LOCAL_WORLD_ALIGNED, dJ);
-        // std::cout << "dJ: " << dJ << std::endl;                              
-        dJlin = dJ.topRows<3>(); // 3×n
-        // std::cout << "Jacobian computed" << std::endl;
-
-        // barrier terms ----------------------------------------
-        get_d_min(vh_proj, v_rel, d_min);  // d_min is the minimum distance to human
-        double h_temp = d - d_min;   // barrier value
-
-        if (h_temp < h_min)
-        {
-          h_min = h_temp;  // keep the minimum value
-        }
-        // std::cout << "Barrier value: " << m_h << std::endl;
-        // std::cout << "Distance to human: " << d << std::endl;
-        // std::cout << "d_min: " << d_min << std::endl;
-        // std::cout << "v_rel: " << v_rel << std::endl;
-        // std::cout << "vh_proj: " << vh_proj << std::endl;
-        // std::cout << "Jlin: " << Jlin << std::endl;
-        // std::cout << "dJlin: " << dJlin << std::endl;
-        get_theta(vh_proj, v_rel, theta);
-
-        state_derivative = range_state_derivative(d_vec, v_r);
-        f = state_derivative.first;  // 2×1
-        g = state_derivative.second;  // 2×3
-
-        partial_h_on_x << 1.0,      // ∂h/∂d
-                          -theta;    // ∂h/∂v_rel
-                          
-        // Lie derivatives                 
-        L_f = (partial_h_on_x.dot(f));  // 1×1
-        L_g = partial_h_on_x * g;
-        // std::cout << "L_g: " << L_g << std::endl;
-        // std::cout << "partial_h_on_x: " << partial_h_on_x << std::endl;
-        // std::cout << "g: " << g << std::endl;
-        A_barrier = L_g * Jlin;   // 1×n
-        b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_alpha * h_temp;  // scalar
-
-        // Eigen::RowVectorXd A_barrier = -Theta * Jd;   // 1×n  (note minus)
-        // double             b_barrier = -Jd.dot(dq) + m_alpha * m_h;
-        // std::cout << "Barrier terms computed" << std::endl;
-        // Append new row to CI / ci0  (quadprog expects CI^T x + ci0 ≥ 0) -------
-        // Note: CI is transposed in the solve_quadprog call, so we append a row
-        m_CI.col(n_cols - m_nc*(j+1) + i).segment(m_nax * i, m_nax) = A_barrier.transpose();  // A_barrier is 1×nax
-        ci0(n_cols - m_nc*(j+1) + i) = b_barrier;
-
-  //       // std::cout << "CI and ci0 updated" << std::endl;
-  //       std::cout << "A_barrier: " << A_barrier << std::endl;
-  //       std::cout << "b_barrier: " << b_barrier << std::endl;
-  // //      std::cout << n_cols - m_nc + i << std::endl;
+        m_ci0.segment(4*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)=-m_qmin;
+        m_ci0.segment(5*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_qmax;
       }
-      // std::cout << m_CI.block(0,n_cols - 2*m_nc, m_CI.rows(), 2*m_nc) << std::endl;
-      // std::cout << ci0.segment(n_cols - m_nc, m_nc).transpose()  << std::endl;
+
+      Eigen::MatrixXd Kinv(m_nc*m_nax,m_nc*m_nax);
+      Kinv.setZero();
+      Eigen::MatrixXd Kinv_block=0.99*(m_DDqmax.cwiseQuotient(m_Dqmax)).asDiagonal();
+      for (unsigned int ic=0;ic<m_nc;ic++)
+      {
+        Kinv.block(ic*m_nax,ic*m_nax,m_nax,m_nax)=Kinv_block;
+        m_ci0.segment(6*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)=-Kinv_block*m_qmin;
+        m_ci0.segment(7*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= Kinv_block*m_qmax;
+      }
+      m_CI.block(0,6*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=(Kinv*m_position_forced_resp+m_velocity_forced_resp).transpose();
+      m_CI.block(0,7*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=-(Kinv*m_position_forced_resp+m_velocity_forced_resp).transpose();
+
+      m_invariance_free_resp=Kinv*m_position_free_resp;
+
+      m_invariance_free_resp.rightCols(m_nax)+=m_velocity_free_resp;
     }
-    m_h = h_min; // Store the minimum barrier value
-    std::cout << "Minimum barrier value: " << m_h << std::endl;
-  }
-  
-  Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
-  std::cout << "Quadratic program solved" << std::endl;
-  // std::cout << "M_CI size: " << m_CI.rows() << " x " << m_CI.cols() << std::endl;
-  // std::cout << "m_ci0 size: " << m_ci0.size() << " x 1" << std::endl;
-  next_acc=m_sol.head(m_nax);
-  std::cout << "Next acceleration: " << next_acc.transpose() << std::endl;
-  next_scaling=m_sol (m_nax*m_nc);
-  m_prediction_vel = m_velocity_forced_resp*m_sol.head(m_nc*m_nax)+m_velocity_free_resp*x0.tail(m_nax);
-  m_prediction_pos = m_position_forced_resp*m_sol.head(m_nc*m_nax)+m_position_free_resp*x0;
-  // std::cout << "Predicted position: " << m_prediction_pos.transpose() << std::endl;
-  // std::cout << "Prediction instants: " << m_prediction_time.transpose() << std::endl;
-  // std::cout << "control intervals: " << m_control_intervals.transpose() << std::endl;
-  m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
-  // std::cout << "Solution computed" << std::endl;
-  return m_h;
-}
 
-bool ThorQP::computedUncostrainedSolution ( const Eigen::VectorXd& targetDq,
-                                            const Eigen::VectorXd& next_targetQ,
-                                            const double& target_scaling,
+    /*
+    * H u + b > -tau_max    ->  H*u+b+tau_max>0
+    * H u + b <  tau_max    -> -H*u-b+tau_max>0
+    * A^T =[H            -H          ]
+    *       nc*(nax+1)   nc*(nax+1)
+    *
+    *
+    */
+  //   if (m_are_torque_bounds_active)
+  //   {
+  //     m_CI.conservativeResize(m_nc*(m_nax+1),  10*m_nc*m_nax+2*m_nc);
+  //     m_CI.block(0,8*m_nc*m_nax+2*m_nc,m_nc*(m_nax+1),2*m_nc*m_nax).setZero();
+
+  // //    m_CI.block(0,8*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=m_position_forced_resp.transpose();
+  // //    m_CI.block(0,9*m_nc*m_nax+2*m_nc,m_nc*m_nax,m_nc*m_nax)=-m_position_forced_resp.transpose();
+
+  //     m_ci0.conservativeResize(10*m_nc*m_nax+2*m_nc);
+  //     m_ci0.tail(2*m_nc*m_nax).setZero();
+  //     for (unsigned int ic=0;ic<m_nc;ic++)
+  //     {
+  //       m_ci0.segment(8*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
+  //       m_ci0.segment(9*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
+  //     }
+  //   }
+    // 1 constraint for each frame - human point couple (TODO) and prediction interval
+    if (m_use_cbf)
+    {
+      int old_cols=m_CI.cols();
+      m_CI.conservativeResize(m_CI.rows(), m_CI.cols()+m_frameIds.size()*m_nc);
+      m_ci0.conservativeResize(m_ci0.size() +m_frameIds.size()*m_nc);
+
+      m_CI.block(0,old_cols, m_CI.rows(),+m_frameIds.size()*m_nc).setZero();
+      m_ci0.tail(m_frameIds.size()*m_nc).setZero();
+    }
+
+    m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
+    m_next_position_free_resp=m_position_free_resp.topRows(m_nax);
+    
+    // forced'*free    to be multiplied by v0
+    m_f_vel.resize((m_nax+1)*m_nc,m_nax);
+    m_f_vel.setZero();
+    m_f_vel.topRows(m_nc*m_nax)=m_velocity_forced_resp.transpose()*m_velocity_free_resp;
+    
+    // m_lambda_clik* forced'*free  to be multiplied by x0 (works only on the first step)
+    m_f_pos.resize((m_nax+1)*m_nc,2*m_nax);
+    m_f_pos.setZero();
+    m_f_pos.topRows(m_nc*m_nax)=m_lambda_clik*m_next_position_forced_resp.transpose()*m_next_position_free_resp;
+
+    // m_lambda_scaling* ones to be multiplied by sref
+    m_f_scaling.resize((m_nax+1)*m_nc);
+    m_f_scaling.setZero();
+    m_f_scaling.tail(m_nc).setConstant(-m_lambda_scaling);
+    
+    m_do_scaling.resize(m_nax*m_nc,m_nc);
+    m_do_scaling.setZero();
+    for (unsigned int ic=0;ic<m_nc;ic++)
+      m_do_scaling.block(ic*m_nax,ic,m_nax,1).setOnes();
+    
+    m_H_fixed.resize((m_nax+1)*m_nc,(m_nax+1)*m_nc);
+    m_H_fixed.setZero();
+
+    m_H_variable.resize((m_nax+1)*m_nc,(m_nax+1)*m_nc);
+    m_H_variable.setZero();
+    
+    m_H_fixed.block(0,0,m_nax*m_nc,m_nax*m_nc) =  m_velocity_forced_resp.transpose()*m_velocity_forced_resp+
+                                                  m_lambda_acc*Eigen::MatrixXd::Identity(m_nax*m_nc,m_nax*m_nc) +
+                                                  m_lambda_clik*m_next_position_forced_resp.transpose()*m_next_position_forced_resp;
+    m_H_fixed.block(m_nax*m_nc,m_nax*m_nc,m_nc,m_nc)  =Eigen::MatrixXd::Identity(m_nc,m_nc)*m_lambda_scaling;
+    
+    m_H.resize((m_nax+1)*m_nc,(m_nax+1)*m_nc);
+    m_f.resize((m_nax+1)*m_nc);
+    m_H.setZero();
+    m_f.setZero();
+    
+    m_prediction_pos.resize(m_nax*m_nc);
+    m_prediction_vel.resize(m_nax*m_nc);
+  }
+
+  void ThorQP::computeActualMatrices ( const Eigen::VectorXd& targetDq, const Eigen::VectorXd& next_targetQ, const double& target_scaling, const Eigen::VectorXd& x0 )
+  {
+    // std::cout << "Computing actual matrices." << std::endl;
+    // std::cout << targetDq   << std::endl;
+    // std::cout << m_do_scaling << std::endl;
+    Eigen::MatrixXd DQT=targetDq.asDiagonal()*m_do_scaling;
+    // std::cout << "1" << std::endl;
+    m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc)=-m_velocity_forced_resp.transpose()*DQT;
+    // std::cout << "2" << std::endl;
+    m_H_variable.block(m_nax*m_nc,0,m_nc,m_nax*m_nc)=m_H_variable.block(0,m_nax*m_nc,m_nax*m_nc,m_nc).transpose();
+    // std::cout << "3" << std::endl;
+    m_H_variable.block(m_nax*m_nc,m_nax*m_nc,m_nc,m_nc)=DQT.transpose()*DQT;
+    // std::cout << "x0: "<<x0.transpose() << std::endl;
+    m_f = m_f_vel*x0.tail(m_nax)+m_f_pos*x0+m_f_scaling*target_scaling;
+    // std::cout << "4" << std::endl;
+    m_f.head(m_nc*m_nax) -= m_lambda_clik* (m_next_position_forced_resp.transpose()*next_targetQ).col(0);
+    
+    m_f.tail(m_nc) -= DQT.transpose()*m_velocity_free_resp*x0.tail(m_nax);
+
+    // if (0)
+    // {
+    //   for (unsigned int ic=0; ic<m_nc; ic++)
+    //   {
+    //     Eigen::VectorXd qc  = m_prediction_pos.block(ic*m_nax,0,m_nax,1);
+    //     Eigen::VectorXd Dqc = m_prediction_vel.block(ic*m_nax,0,m_nax,1);
+        
+    //     // Eigen::VectorXd non_linear_part_torque=m_chain->getJointTorqueNonLinearPart(qc,Dqc);
+    //     // Eigen::MatrixXd inertia_matrix = m_chain->getJointInertia(qc);
+        
+    //     m_H_variable.block(ic*m_nax,ic*m_nax,m_nax,m_nax) += m_lambda_tau * inertia_matrix.transpose()*inertia_matrix;
+    //     m_f.block(ic*m_nax,0,m_nax,1)                     += m_lambda_tau * non_linear_part_torque.transpose()*inertia_matrix;
+    //   }
+    // }
+
+    m_H_variable.block(0,0,m_nax*m_nc,m_nax*m_nc) += m_lambda_jerk * m_jerk_forced_response.transpose()*m_jerk_forced_response;
+    m_f.segment(0,m_nax*m_nc)                     += m_lambda_jerk * ((m_jerk_free_response*(m_sol.head(m_nax))).transpose()*m_jerk_forced_response);
+
+    m_H=m_H_fixed+m_H_variable;
+    
+  }
+
+  void ThorQP::setInitialState ( const Eigen::VectorXd& x0 )
+  {
+    assert(x0.size()==m_nax*2);
+    // std::cout << "Setting initial state." << std::endl;
+    m_state=x0;
+    // std::cout << "Initial state: " << m_state.transpose() << std::endl;
+    for (unsigned int ic=0; ic<m_nc; ic++)
+    {
+      // std::cout << "Setting prediction pos and vel for control interval " << ic << std::endl;
+      m_prediction_pos.block(ic*m_nax,0,m_nax,1)=x0.head(m_nax);
+      m_prediction_vel.block(ic*m_nax,0,m_nax,1).setZero();
+    }
+    
+  }
+
+  void ThorQP::updateState ( const Eigen::VectorXd& next_acc )
+  {
+    m_state.head(m_nax)+=(m_state.tail(m_nax)+0.5*next_acc*m_dt)*m_dt;
+    m_state.tail(m_nax)+=next_acc*m_dt;
+  }
+
+  Eigen::VectorXd ThorQP::getState()
+  {
+    return m_state;
+  }
+
+  double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
+                                            const Eigen::VectorXd& next_targetQ, 
+                                            const double& target_scaling, 
                                             const Eigen::VectorXd& x0,
-                                            Eigen::VectorXd& next_acc,
-                                            double& next_scaling )
-{
-  computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
+                                            const Eigen::Vector3d &vh,
+                                            const Eigen::Vector3d &p_human, 
+                                            Eigen::VectorXd& next_acc, 
+                                            double& next_scaling)
+  {
+    // Build cost matrices and baseline inequality vector
+    computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
+    Eigen::VectorXd ci0=m_ci0;
   
-  m_svd.compute( m_H, Eigen::ComputeThinU | Eigen::ComputeThinV );
-  m_sol=-m_svd.solve(m_f);
-  next_acc=m_sol.head(m_nax);
-  next_scaling=m_sol (m_nax*m_nc);
-  return true;
-}
+    int n_cols = m_CI.cols();
 
-Eigen::VectorXd ThorQP::getFirstPredictionPos()
-{
-  if (m_prediction_pos.size()>0)
-  {
-    return m_prediction_pos.head(m_nax);
-  }
-  else
-  {
-    Eigen::VectorXd empty;
-    return empty;
+    // Velocity bounds
+    ci0.segment(2*m_nc*(m_nax+1)           ,m_nax*m_nc)+=m_velocity_free_resp*x0.tail(m_nax); // vel lower bounds
+    ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc,m_nax*m_nc)-=m_velocity_free_resp*x0.tail(m_nax); // vel upper bounds
+    // Position bounds
+    if (m_are_position_bounds_active)
+    {
+      ci0.segment(2*m_nc*(m_nax+1)+2*m_nax*m_nc,m_nax*m_nc)+=m_position_free_resp*x0; // pos lower bounds
+      ci0.segment(2*m_nc*(m_nax+1)+3*m_nax*m_nc,m_nax*m_nc)-=m_position_free_resp*x0; // pos upper bounds
+      ci0.segment(2*m_nc*(m_nax+1)+4*m_nax*m_nc,m_nax*m_nc)+=m_invariance_free_resp*x0; // invariance lower constraint
+      ci0.segment(2*m_nc*(m_nax+1)+5*m_nax*m_nc,m_nax*m_nc)-=m_invariance_free_resp*x0; // invariance upper constraint
+    }
+    // if  (m_are_torque_bounds_active)
+    // {
+    //   for (unsigned int idx=0;idx<m_nc;idx++)
+    //   {
+    //     // m_CI.block(idx*m_nc,8*m_nc*m_nax+2*m_nc,m_nax,m_nax)=m_chain->getJointInertia(m_prediction_pos.segment(idx*m_nax,m_nax)); // update torque constraints
+    //     Eigen::VectorXd torque_nonlinear_part=m_chain->getJointTorqueNonLinearPart(m_prediction_pos.segment(idx*m_nax,m_nax),m_prediction_vel.segment(idx*m_nax,m_nax));
+    //     ci0.segment(2*m_nc*(m_nax+1)+6*m_nax*m_nc+idx*m_nc,m_nax)+=torque_nonlinear_part; // torque lower bounds
+    //     ci0.segment(2*m_nc*(m_nax+1)+7*m_nax*m_nc+idx*m_nc,m_nax)-=torque_nonlinear_part; // torque upper bounds
+    //   }
+    // }
+
+    // CBF constraint
+    if (m_use_cbf)
+    {
+      Eigen::RowVector2d f, partial_h_on_x;
+      Eigen::Vector3d p_r, d_vec, e_rh, v_r, p_h;
+      Eigen::RowVectorXd L_g, A_barrier;
+
+      double d, v_rel, vh_proj, d_min, theta, L_f, b_barrier;
+
+      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> J, dJ;
+      J.resize(m_nax, m_model.nv);
+      dJ.resize(m_nax, m_model.nv);
+
+      Eigen::Matrix<double,3,Eigen::Dynamic> Jlin, dJlin;
+      Eigen::Matrix<double, 2, 3> g;
+      std::pair<Eigen::Vector2d, Eigen::Matrix<double, 2, 3>> state_derivative;
+      double h_min = 1000.0; // Minimum value for the barrier function
+
+      for (size_t j = 0; j < m_frameIds.size(); ++j)
+      {
+        size_t frameId = m_frameIds[j];
+        for ( size_t i = 0; i< m_nc; i++ )
+        {
+          // p_h prediction
+          for (size_t k=0; k< 3; k++)
+          {
+            p_h(k) = p_human(k) + vh(k) * m_prediction_time(i); // human position at time t
+          }
+          const Eigen::VectorXd &q  = m_prediction_pos.segment(m_nax*i, m_nax);
+          const Eigen::VectorXd &dq = m_prediction_vel.segment(m_nax*i, m_nax);
+          // std::cout << "q: " << q.transpose() << std::endl;
+          // std::cout << "dq: " << dq.transpose() << std::endl;
+          // std::cout << "CBF constraint" << std::endl;
+          // Pinocchio kinematics 
+          //pinocchio::forwardKinematics(m_model, m_data, q, dq);
+          pinocchio::computeForwardKinematicsDerivatives(m_model, m_data, q, dq, 0.0*dq);
+          pinocchio::updateFramePlacements(m_model, m_data);
+          // std::cout << "Pinocchio kinematics done" << std::endl;
+          p_r   = m_data.oMf[frameId].translation();   // robot pos
+          // std::cout << "Robot position: " << p_r.transpose() << std::endl;
+          // std::cout << "Human position: " << p_h.transpose() << std::endl;
+          d_vec = p_r - p_h;                            // to human
+          d     = std::max(1e-6, d_vec.norm());           // avoid 0
+          e_rh  = d_vec / d;       
+
+          vh_proj = e_rh.dot(vh);                       // unit dir
+          
+          auto twist =  pinocchio::getFrameVelocity(m_model, m_data, frameId, pinocchio::LOCAL_WORLD_ALIGNED);
+          v_r = twist.linear();                // robot linear velocity
+          v_rel = v_r.dot(e_rh);                  // robot velocity
+          
+          // std::cout << "Distance to human: " << d << std::endl;
+          // Jacobian (linear part) -----------------------------------------------
+          // std::cout << "q:" << q.transpose() << std::endl;
+          pinocchio::computeFrameJacobian(m_model, 
+                                          m_data,
+                                          q,
+                                          frameId,
+                                          pinocchio::LOCAL_WORLD_ALIGNED, 
+                                          J);
+          Jlin = J.topRows<3>();   // 3×n
+          //Eigen::RowVectorXd Jd = e_rh.transpose() * Jlin;                 // 1×n
+
+          // computeFrameJacobianDot(m_model,
+          //         m_data,
+          //         frameId,
+          //         q,
+          //         dq,
+          //         pinocchio::LOCAL_WORLD_ALIGNED,
+          //         m_dt, // numerical differentiation step
+          //         dJ
+          //     );
+          pinocchio::computeJointJacobiansTimeVariation(m_model, 
+                                          m_data, 
+                                          q, 
+                                          dq);
+          pinocchio::getFrameJacobianTimeVariation(m_model, m_data, frameId, pinocchio::LOCAL_WORLD_ALIGNED, dJ);
+          // std::cout << "dJ: " << dJ << std::endl;                              
+          dJlin = dJ.topRows<3>(); // 3×n
+          // std::cout << "Jacobian computed" << std::endl;
+
+          // barrier terms ----------------------------------------
+          get_d_min(vh_proj, v_rel, d_min);  // d_min is the minimum distance to human
+          double h_temp = d - d_min;   // barrier value
+
+          if (h_temp < h_min)
+          {
+            h_min = h_temp;  // keep the minimum value
+          }
+          // std::cout << "Barrier value: " << m_h << std::endl;
+          // std::cout << "Distance to human: " << d << std::endl;
+          // std::cout << "d_min: " << d_min << std::endl;
+          // std::cout << "v_rel: " << v_rel << std::endl;
+          // std::cout << "vh_proj: " << vh_proj << std::endl;
+          // std::cout << "Jlin: " << Jlin << std::endl;
+          // std::cout << "dJlin: " << dJlin << std::endl;
+          get_theta(vh_proj, v_rel, theta);
+
+          state_derivative = range_state_derivative(d_vec, v_r);
+          f = state_derivative.first;  // 2×1
+          g = state_derivative.second;  // 2×3
+
+          partial_h_on_x << 1.0,      // ∂h/∂d
+                            -theta;    // ∂h/∂v_rel
+                            
+          // Lie derivatives                 
+          L_f = (partial_h_on_x.dot(f));  // 1×1
+          L_g = partial_h_on_x * g;
+          // std::cout << "L_g: " << L_g << std::endl;
+          // std::cout << "partial_h_on_x: " << partial_h_on_x << std::endl;
+          // std::cout << "g: " << g << std::endl;
+          A_barrier = L_g * Jlin;   // 1×n
+          b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_alpha * h_temp;  // scalar
+
+          // Eigen::RowVectorXd A_barrier = -Theta * Jd;   // 1×n  (note minus)
+          // double             b_barrier = -Jd.dot(dq) + m_alpha * m_h;
+          // std::cout << "Barrier terms computed" << std::endl;
+          // Append new row to CI / ci0  (quadprog expects CI^T x + ci0 ≥ 0) -------
+          // Note: CI is transposed in the solve_quadprog call, so we append a row
+          m_CI.col(n_cols - m_nc*(j+1) + i).segment(m_nax * i, m_nax) = A_barrier.transpose();  // A_barrier is 1×nax
+          ci0(n_cols - m_nc*(j+1) + i) = b_barrier;
+
+    //       // std::cout << "CI and ci0 updated" << std::endl;
+    //       std::cout << "A_barrier: " << A_barrier << std::endl;
+    //       std::cout << "b_barrier: " << b_barrier << std::endl;
+    // //      std::cout << n_cols - m_nc + i << std::endl;
+        }
+        // std::cout << m_CI.block(0,n_cols - 2*m_nc, m_CI.rows(), 2*m_nc) << std::endl;
+        // std::cout << ci0.segment(n_cols - m_nc, m_nc).transpose()  << std::endl;
+      }
+      m_h = h_min; // Store the minimum barrier value
+      std::cout << "Minimum barrier value: " << m_h << std::endl;
+    }
+    
+    Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
+    std::cout << "Quadratic program solved" << std::endl;
+    // std::cout << "M_CI size: " << m_CI.rows() << " x " << m_CI.cols() << std::endl;
+    // std::cout << "m_ci0 size: " << m_ci0.size() << " x 1" << std::endl;
+    next_acc=m_sol.head(m_nax);
+    std::cout << "Next acceleration: " << next_acc.transpose() << std::endl;
+    next_scaling=m_sol (m_nax*m_nc);
+    m_prediction_vel = m_velocity_forced_resp*m_sol.head(m_nc*m_nax)+m_velocity_free_resp*x0.tail(m_nax);
+    m_prediction_pos = m_position_forced_resp*m_sol.head(m_nc*m_nax)+m_position_free_resp*x0;
+    // std::cout << "Predicted position: " << m_prediction_pos.transpose() << std::endl;
+    // std::cout << "Prediction instants: " << m_prediction_time.transpose() << std::endl;
+    // std::cout << "control intervals: " << m_control_intervals.transpose() << std::endl;
+    m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
+    // std::cout << "Solution computed" << std::endl;
+    return m_h;
   }
 
-}
-Eigen::VectorXd ThorQP::getFirstPredictionVel()
-{
-  if (m_prediction_vel.size()>0)
+  bool ThorQP::computedUncostrainedSolution ( const Eigen::VectorXd& targetDq,
+                                              const Eigen::VectorXd& next_targetQ,
+                                              const double& target_scaling,
+                                              const Eigen::VectorXd& x0,
+                                              Eigen::VectorXd& next_acc,
+                                              double& next_scaling )
   {
-    return m_prediction_vel.head(m_nax);
+    computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
+    
+    m_svd.compute( m_H, Eigen::ComputeThinU | Eigen::ComputeThinV );
+    m_sol=-m_svd.solve(m_f);
+    next_acc=m_sol.head(m_nax);
+    next_scaling=m_sol (m_nax*m_nc);
+    return true;
   }
-  else
+
+  Eigen::VectorXd ThorQP::getFirstPredictionPos()
   {
-    Eigen::VectorXd empty;
-    return empty;
+    if (m_prediction_pos.size()>0)
+    {
+      return m_prediction_pos.head(m_nax);
+    }
+    else
+    {
+      Eigen::VectorXd empty;
+      return empty;
+    }
+
   }
-}
+  Eigen::VectorXd ThorQP::getFirstPredictionVel()
+  {
+    if (m_prediction_vel.size()>0)
+    {
+      return m_prediction_vel.head(m_nax);
+    }
+    else
+    {
+      Eigen::VectorXd empty;
+      return empty;
+    }
+  }
 
 // void ThorQP::setDynamicsChain(const rdyn::ChainPtr& chain)
 // {
