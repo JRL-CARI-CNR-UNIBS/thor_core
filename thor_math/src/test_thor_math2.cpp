@@ -53,7 +53,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
 {
   double radius = 0.3;               // Smaller, so stays inside workspace
   double omega = 2*M_PI/5.0;
-  double center_x = 0.95;             // Further in front of the robot
+  double center_x = 0.9;             // Further in front of the robot
   double center_y = 0.3;
   double center_z = 0.65;             // Higher up
 
@@ -95,77 +95,87 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
     Eigen::VectorXd q_final(nax);
     q_final << 
         M_PI/4,      // shoulder pan: 45° to the left
-        -M_PI/3,     // shoulder lift: a bit higher (-60°)
+       -M_PI/3,     // shoulder lift: a bit higher (-60°)
         M_PI/3,      // elbow: extends more (60°)
-        -M_PI/4,     // wrist 1: tilts down (-45°)
+       -M_PI/4,     // wrist 1: tilts down (-45°)
         M_PI/6,      // wrist 2: small positive rotation (30°)
-        -M_PI/6;     // wrist 3: small negative rotation (-30°)
-    double T = 3.0; // seconds (duration of motion)
+       -M_PI/6;     // wrist 3: small negative rotation (-30°)
+    double T = 2.0; // seconds (duration of motion)
 
     std::cout << "Setting up ThorQP with " << nax << " joints and " << nc << " intervals." << std::endl;
     
     qp.setIntervals(nc, nax, horizon, st);
     qp.setCBFParameters(2.5,0.15,0.25,5.0);
-    qp.setConstraints(Eigen::VectorXd::Constant(nax, 20.0),   // qmax
-                        Eigen::VectorXd::Constant(nax, -20.0),  // qmin
+    qp.setConstraints(Eigen::VectorXd::Constant(nax, M_PI),   // qmax
+                        Eigen::VectorXd::Constant(nax, -M_PI),  // qmin
                         Eigen::VectorXd::Constant(nax, 20.0),   // Dqmax
-                        Eigen::VectorXd::Constant(nax, 50.0),   // DDqmax
+                        Eigen::VectorXd::Constant(nax, 5000.0),   // DDqmax
                         Eigen::VectorXd::Constant(nax, 10.0)); // tau_max
 
     std::cout << "Setting weight functions." << std::endl;
-    qp.setWeigthFunction(1e-04, 1e-09, 0.0, 1e+2, 1e+4);
+    qp.setWeigthFunction(0, 0, 0.0, 1e+2, 1e+6);
 
     qp.activatePositionBounds(true);
     qp.activateTorqueBounds(false);
     qp.activateCbfBounds(true);
 
+
+     std::vector<unsigned int> frame_ids;
+
+    for (std::size_t i = 0; i < model.frames.size(); ++i)
+    {
+        const pinocchio::Frame &f = model.frames[i];
+
+        if (f.type == pinocchio::JOINT || f.name.find("intermediate") != std::string::npos)
+        {
+            frame_ids.push_back(static_cast<int>(i));
+            std::cout << "Frame ID: " << i << ", Name: " << f.name << std::endl;
+        }
+      }
+    qp.setFrameIds(frame_ids);
     if (qp.needUpdate()) 
     {
        qp.updateMatrices();
-       std::cout << "Matrices updated." << std::endl;
+      //  std::cout << "Matrices updated." << std::endl;
     } 
-    else
-    {
-      std::cout << "No need to update matrices." << std::endl;
-    }
+ 
 
-    std::cout << "Updating matrices." << std::endl;
         // Set initial state (zero position + velocity)
         Eigen::VectorXd x0 = Eigen::VectorXd::Zero(2 * nax);
         x0.segment(0, nax) =q_init; // Initial position
-        std::cout << "Initial state set to:\n" << x0.transpose() << std::endl;
+        // std::cout << "Initial state set to:\n" << x0.transpose() << std::endl;
        //x0.tail(nax) << 0.1,0.1,0.1,0.1,0.1,0.1; // Initial velocity
         qp.setInitialState(x0);
-         std::cout << "Setting initial state." << std::endl;
-        std::cout << "Initial state: " << qp.getState().transpose() << std::endl;
+        //  std::cout << "Setting initial state." << std::endl;
+        // std::cout << "Initial state: " << qp.getState().transpose() << std::endl;
         // Define dummy targets
         Eigen::VectorXd targetDq;
         targetDq.resize(nax * nc);
         Eigen::VectorXd next_targetQ;
         next_targetQ.resize(nax); 
-        double target_scaling = 1.0;
+        double target_scaling = 1;
        
         Eigen::VectorXd next_acc;
         double scaling;
 
         Eigen::Vector3d p_h; // Human position
         Eigen::Vector3d vh;
-        size_t frameId = model.getFrameId("wrist_3_joint"); // Example frame ID"); 
-        std::cout << "Frame ID: " << frameId << std::endl;
+        // size_t frameId = model.getFrameId("wrist_3_joint"); // Example frame ID
+       
         // Run constrained QP solution
         Eigen::VectorXd prediction_time = qp.getPredictionTimeInstant();
         int iter = 0;
         double nominal_t = 0.0;
         double t= 0.0;
-        
+        int max_iter = 5000;
         std::cout << "starting ... " << std::endl;
-        while (mean_pos_error > toll && iter < 10000)
+        while (mean_pos_error > toll && iter < max_iter)
         {
 
             if (qp.needUpdate()) 
             {
               qp.updateMatrices();
-              std::cout << "Matrices updated." << std::endl;
+              // std::cout << "Matrices updated." << std::endl;
             } 
             nominal_t+=scaling*st;
             t+=st;
@@ -190,7 +200,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
             human_circle(nominal_t, p_h, vh);
             std::cout << __LINE__ << " ... " << std::endl;
             printf("aaa\n");
-            double h = qp.computedCostrainedSolution(targetDq,next_targetQ,target_scaling,qp.getState(), vh, p_h, frameId,next_acc,scaling);
+            double h = qp.computedCostrainedSolution(targetDq,next_targetQ,target_scaling,qp.getState(), vh, p_h, next_acc,scaling);
             // std::cout << __LINE__ << " ... " << std::endl;
             // std::cout << "Next Acceleration: " << next_acc.transpose() << std::endl;
             // std::cout << "Next Scaling: " << scaling << std::endl;
@@ -199,11 +209,11 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
             // std::cout << "targetq: " << next_targetQ.transpose() << std::endl;
             double eps = 1e-6;
             mean_pos_error = (
-                ((qp.getState().head(nax) - next_targetQ).cwiseAbs().array())
+                ((qp.getState().head(nax) - q_final).cwiseAbs().array())
                 / (next_targetQ.cwiseAbs().array() + eps)
             ).mean() * 100.0;
-            
-            rel_error = ((qp.getState().head(nax) - next_targetQ).cwiseAbs().array())
+
+            rel_error = ((qp.getState().head(nax) - q_final).cwiseAbs().array())
                  / (q_final.cwiseAbs().array() + eps);
 
           
@@ -214,10 +224,10 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
 
     }
       std::cout << "Mean position error: " << mean_pos_error << std::endl;
-      std::cout << "Updated_vel: " << qp.getState().tail(nax).transpose() << std::endl;
+      // std::cout << "Updated_vel: " << qp.getState().tail(nax).transpose() << std::endl;
       std::cout << "target q: " << next_targetQ.transpose() << std::endl;
-      std::cout << "Relative error: " << rel_error.transpose() << std::endl;
-      if (iter >= 10000)
+      // std::cout << "Relative error: " << rel_error.transpose() << std::endl;
+      if (iter >= max_iter)
       {
         std::cout << "Maximum iterations reached without convergence." << std::endl;
       }

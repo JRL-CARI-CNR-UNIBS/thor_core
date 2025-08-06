@@ -8,38 +8,8 @@ namespace thor
 namespace math
 {
 
-void computeFrameJacobianDot(
-    const pinocchio::Model& model,
-    pinocchio::Data& data,
-    pinocchio::FrameIndex frame_id,
-    const Eigen::VectorXd& q,
-    const Eigen::VectorXd& dq,
-    pinocchio::ReferenceFrame rf,
-    double dt,
-     Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic>& dJ // (6, model.nv)
-) {
-    dJ.resize(q.size(), model.nv);
-    // Jacobian at q
-    pinocchio::computeJointJacobians(model, data, q);
-    Eigen::MatrixXd J1(6, model.nv);
-    pinocchio::getFrameJacobian(model, data, frame_id, rf, J1);
-
-    // Integrate q forward by dq*dt
-    Eigen::VectorXd q_next = pinocchio::integrate(model, q, dq * dt);
-
-    // Jacobian at q_next
-    pinocchio::computeJointJacobians(model, data, q_next);
-    Eigen::MatrixXd J2(6, model.nv);
-    pinocchio::getFrameJacobian(model, data, frame_id, rf, J2);
-
-    // Central finite difference
-    dJ = (J2 - J1) / dt;
-}
-
-
-std::pair<Eigen::Vector2d, Eigen::Matrix<double, 2, 3>>
-range_state_derivative(const Eigen::Vector3d& r, const Eigen::Vector3d& v, double eps = 1e-12)
-{
+  std::pair<Eigen::Vector2d, Eigen::Matrix<double, 2, 3>> range_state_derivative(const Eigen::Vector3d& r, const Eigen::Vector3d& v, double eps = 1e-12)
+  {
     double d = r.norm();
     if (d < eps) {
         throw std::runtime_error("Range is zero; direction is undefined.");
@@ -60,285 +30,312 @@ range_state_derivative(const Eigen::Vector3d& r, const Eigen::Vector3d& v, doubl
     g.row(1) = g2;
 
     return std::make_pair(f, g);
-}
-Eigen::MatrixXd freeResponse ( const double& t, const unsigned int& nax )
-{
-  Eigen::MatrixXd mtx(2*nax,2*nax);
-  mtx.setIdentity();
-  mtx.block(0,nax,nax,nax)=Eigen::MatrixXd::Identity(nax,nax)*t;
-  return mtx;
-}
-  
-Eigen::MatrixXd forcedResponse ( const double& t, const unsigned int& nax )
-{
-  Eigen::MatrixXd mtx(2*nax,nax);
-  mtx.block(0,   0,nax,nax)=std::pow(t,2)*0.5*Eigen::MatrixXd::Identity(nax,nax);
-  mtx.block(nax, 0,nax,nax)=Eigen::MatrixXd::Identity(nax,nax)*t;
-  return mtx;
-}
-
-  
-bool computeEvolutionMatrix ( const Eigen::Ref< Eigen::VectorXd > prediction_time, const Eigen::Ref< Eigen::VectorXd > control_intervals, const unsigned int& nax, Eigen::MatrixXd& free_response, Eigen::MatrixXd& forced_response )
-{
-  unsigned int np=prediction_time.size();
-  if (np==0)
-    return false;
-  
-  unsigned int nc=control_intervals.size();
-  if (nc==0)
-    return false;
-  
-  Eigen::VectorXd stop_control_time(nc);
-  Eigen::VectorXd start_control_time(nc);
-  start_control_time(0)=0;
-  stop_control_time(0)=control_intervals(0);
-  for (unsigned int ic=1;ic<nc;ic++)
-  {
-    start_control_time(ic) = stop_control_time(ic-1);
-    stop_control_time(ic)  = stop_control_time(ic-1)  + control_intervals(ic);
   }
-  free_response.resize(2*nax*np,2*nax);
-  forced_response.resize(2*nax*np,nc*nax);
-  free_response.setZero();
-  forced_response.setZero();
-  for (unsigned int ip=0;ip<np;ip++)
+
+  Eigen::MatrixXd freeResponse ( const double& t, const unsigned int& nax )
   {
-    free_response.block(ip*2*nax, 0,   2*nax, 2*nax) = freeResponse(prediction_time(ip),nax);
-    for (unsigned int ic=0;ic<nc;ic++)
+    Eigen::MatrixXd mtx(2*nax,2*nax);
+    mtx.setIdentity();
+    mtx.block(0,nax,nax,nax)=Eigen::MatrixXd::Identity(nax,nax)*t;
+    return mtx;
+  }
+  
+  Eigen::MatrixXd forcedResponse ( const double& t, const unsigned int& nax )
+  {
+    Eigen::MatrixXd mtx(2*nax,nax);
+    mtx.block(0,   0,nax,nax)=std::pow(t,2)*0.5*Eigen::MatrixXd::Identity(nax,nax);
+    mtx.block(nax, 0,nax,nax)=Eigen::MatrixXd::Identity(nax,nax)*t;
+    return mtx;
+  }
+
+  bool computeEvolutionMatrix ( const Eigen::Ref< Eigen::VectorXd > prediction_time, const Eigen::Ref< Eigen::VectorXd > control_intervals, const unsigned int& nax, Eigen::MatrixXd& free_response, Eigen::MatrixXd& forced_response )
+  {
+    unsigned int np=prediction_time.size();
+    if (np==0)
+      return false;
+    
+    unsigned int nc=control_intervals.size();
+    if (nc==0)
+      return false;
+    
+    Eigen::VectorXd stop_control_time(nc);
+    Eigen::VectorXd start_control_time(nc);
+    start_control_time(0)=0;
+    stop_control_time(0)=control_intervals(0);
+    for (unsigned int ic=1;ic<nc;ic++)
     {
-      if (prediction_time(ip)>stop_control_time(ic))
+      start_control_time(ic) = stop_control_time(ic-1);
+      stop_control_time(ic)  = stop_control_time(ic-1)  + control_intervals(ic);
+    }
+    free_response.resize(2*nax*np,2*nax);
+    forced_response.resize(2*nax*np,nc*nax);
+    free_response.setZero();
+    forced_response.setZero();
+    for (unsigned int ip=0;ip<np;ip++)
+    {
+      free_response.block(ip*2*nax, 0,   2*nax, 2*nax) = freeResponse(prediction_time(ip),nax);
+      for (unsigned int ic=0;ic<nc;ic++)
       {
-        double free_response_time=prediction_time(ip)-stop_control_time(ic);
-        forced_response.block(ip*2*nax,nax*ic,2*nax,nax)= freeResponse(free_response_time,nax)*forcedResponse(control_intervals(ic),nax);
+        if (prediction_time(ip)>stop_control_time(ic))
+        {
+          double free_response_time=prediction_time(ip)-stop_control_time(ic);
+          forced_response.block(ip*2*nax,nax*ic,2*nax,nax)= freeResponse(free_response_time,nax)*forcedResponse(control_intervals(ic),nax);
+        }
+        else if (prediction_time(ip)>start_control_time(ic))
+        {
+          forced_response.block(ip*2*nax,nax*ic,2*nax,nax)= forcedResponse(prediction_time(ip)-start_control_time(ic),nax);
+        }
+        // else zero
       }
-      else if (prediction_time(ip)>start_control_time(ic))
-      {
-        forced_response.block(ip*2*nax,nax*ic,2*nax,nax)= forcedResponse(prediction_time(ip)-start_control_time(ic),nax);
-      }
-      // else zero
+    }
+    return true;
+  }
+
+  bool computeJerkEvolutionMatrix ( const Eigen::Ref< Eigen::VectorXd > prediction_time, const Eigen::Ref< Eigen::VectorXd > control_intervals, const unsigned int& nax, Eigen::MatrixXd& free_response, Eigen::MatrixXd& forced_response )
+  {
+    unsigned int np=prediction_time.size();
+    if (np==0)
+      return false;
+
+    unsigned int nc=control_intervals.size();
+    if (nc==0)
+      return false;
+
+    forced_response.resize(np*nax,nc*nax);
+    free_response.resize(np*nax,nax);
+
+    free_response.setZero();
+    free_response.block(0,0,nax,nax)=-Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(0);
+
+    forced_response.setZero();
+    forced_response.block(0,0,nax,nax)=Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(0);
+    for (unsigned int idx=1;idx<nc;idx++)
+    {
+      forced_response.block(nax*idx,nax*(idx-1),nax,nax)=-Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(idx);
+      forced_response.block(nax*idx,nax*idx,nax,nax)    = Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(idx);
+    }
+
+    return true;
+  } 
+
+  bool quadraticControlIntervals ( const double& control_horizon_time, const unsigned int& n_control, const double& first_interval, Eigen::VectorXd& control_intervals, Eigen::VectorXd& prediction_time )
+  {
+    assert(first_interval>0);
+    assert(control_horizon_time>0);
+    assert(n_control>0);
+    
+    unsigned int n_steps=control_horizon_time/first_interval;
+    
+    double a = (n_steps-1)/std::pow(n_control-1,2);
+    double b = -2.0*(n_steps-1)/std::pow(n_control-1,2);
+    double c = 1+a;
+    
+    prediction_time.resize(n_control);
+    control_intervals.resize(n_control);
+    for (unsigned int ic=0;ic<n_control;ic++)
+    {
+      prediction_time(ic)=first_interval*std::round(a* std::pow(ic+1,2)+b*(ic+1)+c);
+      if (ic==0)
+        control_intervals(ic)=prediction_time(ic);
+      else
+        control_intervals(ic)=prediction_time(ic)-prediction_time(ic-1);
+    }
+    return true;
+  }
+
+  bool constantControlIntervals ( const double& control_horizon_time, const unsigned int& n_control, const double& sampling_period, Eigen::VectorXd& control_intervals, Eigen::VectorXd& prediction_time )
+  {
+    assert(control_horizon_time>0);
+    assert(n_control>0);
+
+    double step_size=sampling_period*std::round(control_horizon_time/n_control/sampling_period);
+
+    prediction_time.resize(n_control);
+    control_intervals.resize(n_control);
+    for (unsigned int ic=0;ic<n_control;ic++)
+    {
+      prediction_time(ic)=step_size*(ic+1);
+      if (ic==0)
+        control_intervals(ic)=prediction_time(ic);
+      else
+        control_intervals(ic)=prediction_time(ic)-prediction_time(ic-1);
+    }
+    return true;
+  }
+
+  void splitResponses ( const Eigen::MatrixXd& free_response, 
+                        Eigen::MatrixXd& velocity_free_response, 
+                        Eigen::MatrixXd& position_free_response, 
+                        const Eigen::MatrixXd& forced_response, 
+                        Eigen::MatrixXd& velocity_forced_response, 
+                        Eigen::MatrixXd& position_forced_response, 
+                        const unsigned int& nax )
+  {
+    velocity_free_response.resize(free_response.rows()/2,free_response.cols()/2);
+    position_free_response.resize(free_response.rows()/2,free_response.cols());
+    velocity_forced_response.resize(forced_response.rows()/2,forced_response.cols());
+    position_forced_response.resize(forced_response.rows()/2,forced_response.cols());
+    
+    unsigned int np = free_response.rows()/2/nax;
+    for (unsigned int ip=0; ip<np;ip++)
+    {
+      velocity_free_response.block(   ip*nax,0,nax,free_response.cols()/2)   = free_response.block(  ip*2*nax+nax,nax,nax,free_response.cols()/2);
+      position_free_response.block(   ip*nax,0,nax,free_response.cols())   = free_response.block(  ip*2*nax,    0,nax,free_response.cols());
+      velocity_forced_response.block( ip*nax,0,nax,forced_response.cols()) = forced_response.block(ip*2*nax+nax,0,nax,forced_response.cols());
+      position_forced_response.block( ip*nax,0,nax,forced_response.cols()) = forced_response.block(ip*2*nax,    0,nax,forced_response.cols());
+    }
+    
+  }
+
+  ThorQP::ThorQP()
+  {
+    m_are_matrices_updated=false;
+    m_are_position_bounds_active=false;
+    m_are_torque_bounds_active=false;
+    m_use_cbf=false;
+  }
+
+  void ThorQP::get_d_min(const double& v_h, const double& v_r, double& d_min)
+  {
+    if (v_r < 0.0)
+    {
+      d_min = m_C
+              + v_r * v_r / (2.0 * m_a_s)
+              - v_r * m_T_r
+              - v_r * v_h / m_a_s
+              + m_T_r * v_h;
+    }
+    else
+    {
+      d_min = m_C
+              + (v_h - v_r) * m_T_r
+              + (v_h - v_r) * (v_h - v_r) / (2.0 * m_a_s);
     }
   }
-  
-  return true;
-  
-}
 
-bool computeJerkEvolutionMatrix ( const Eigen::Ref< Eigen::VectorXd > prediction_time, const Eigen::Ref< Eigen::VectorXd > control_intervals, const unsigned int& nax, Eigen::MatrixXd& free_response, Eigen::MatrixXd& forced_response )
-{
-  unsigned int np=prediction_time.size();
-  if (np==0)
-    return false;
-
-  unsigned int nc=control_intervals.size();
-  if (nc==0)
-    return false;
-
-  forced_response.resize(np*nax,nc*nax);
-  free_response.resize(np*nax,nax);
-
-  free_response.setZero();
-  free_response.block(0,0,nax,nax)=-Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(0);
-
-  forced_response.setZero();
-  forced_response.block(0,0,nax,nax)=Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(0);
-  for (unsigned int idx=1;idx<nc;idx++)
+  void ThorQP::compute_theta(const double& v_h, const double& v_r, double& theta)
   {
-    forced_response.block(nax*idx,nax*(idx-1),nax,nax)=-Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(idx);
-    forced_response.block(nax*idx,nax*idx,nax,nax)    = Eigen::MatrixXd::Identity(nax,nax)*1/control_intervals(idx);
-  }
-
-  return true;
-
-}
-
-bool quadraticControlIntervals ( const double& control_horizon_time, const unsigned int& n_control, const double& first_interval, Eigen::VectorXd& control_intervals, Eigen::VectorXd& prediction_time )
-{
-  assert(first_interval>0);
-  assert(control_horizon_time>0);
-  assert(n_control>0);
-  
-  unsigned int n_steps=control_horizon_time/first_interval;
-  
-  double a = (n_steps-1)/std::pow(n_control-1,2);
-  double b = -2.0*(n_steps-1)/std::pow(n_control-1,2);
-  double c = 1+a;
-  
-  prediction_time.resize(n_control);
-  control_intervals.resize(n_control);
-  for (unsigned int ic=0;ic<n_control;ic++)
-  {
-    prediction_time(ic)=first_interval*std::round(a* std::pow(ic+1,2)+b*(ic+1)+c);
-    if (ic==0)
-      control_intervals(ic)=prediction_time(ic);
+    if (v_r < 0.0)
+    {
+      theta =   v_r / m_a_s
+              - m_T_r
+              - v_h / m_a_s;
+    }
     else
-      control_intervals(ic)=prediction_time(ic)-prediction_time(ic-1);
+    {
+      theta = - m_T_r
+              + (v_r - v_h) / m_a_s;
+    }
   }
-  return true;
-}
 
-bool constantControlIntervals ( const double& control_horizon_time, const unsigned int& n_control, const double& sampling_period, Eigen::VectorXd& control_intervals, Eigen::VectorXd& prediction_time )
-{
-  assert(control_horizon_time>0);
-  assert(n_control>0);
 
-  double step_size=sampling_period*std::round(control_horizon_time/n_control/sampling_period);
-
-  prediction_time.resize(n_control);
-  control_intervals.resize(n_control);
-  for (unsigned int ic=0;ic<n_control;ic++)
+  void ThorQP::setCBFParameters ( const double& a_s, const double& T_r, const double& C, const double& alpha )
   {
-    prediction_time(ic)=step_size*(ic+1);
-    if (ic==0)
-      control_intervals(ic)=prediction_time(ic);
-    else
-      control_intervals(ic)=prediction_time(ic)-prediction_time(ic-1);
+    m_a_s=a_s;
+    m_T_r=T_r;
+    m_C=C;
+    m_alpha=alpha;
   }
-  return true;
-}
 
-void splitResponses ( const Eigen::MatrixXd& free_response, 
-                      Eigen::MatrixXd& velocity_free_response, 
-                      Eigen::MatrixXd& position_free_response, 
-                      const Eigen::MatrixXd& forced_response, 
-                      Eigen::MatrixXd& velocity_forced_response, 
-                      Eigen::MatrixXd& position_forced_response, 
-                      const unsigned int& nax )
-{
-  velocity_free_response.resize(free_response.rows()/2,free_response.cols()/2);
-  position_free_response.resize(free_response.rows()/2,free_response.cols());
-  velocity_forced_response.resize(forced_response.rows()/2,forced_response.cols());
-  position_forced_response.resize(forced_response.rows()/2,forced_response.cols());
-  
-  unsigned int np = free_response.rows()/2/nax;
-  for (unsigned int ip=0; ip<np;ip++)
+  void ThorQP::setPinocchioModel ( const pinocchio::Model& model )
   {
-    velocity_free_response.block(   ip*nax,0,nax,free_response.cols()/2)   = free_response.block(  ip*2*nax+nax,nax,nax,free_response.cols()/2);
-    position_free_response.block(   ip*nax,0,nax,free_response.cols())   = free_response.block(  ip*2*nax,    0,nax,free_response.cols());
-    velocity_forced_response.block( ip*nax,0,nax,forced_response.cols()) = forced_response.block(ip*2*nax+nax,0,nax,forced_response.cols());
-    position_forced_response.block( ip*nax,0,nax,forced_response.cols()) = forced_response.block(ip*2*nax,    0,nax,forced_response.cols());
+    m_model=model;
+    m_data=pinocchio::Data(m_model);
+    // m_eeFrameId = model.getFrameId("end_effector"); // Example, if you have an end-effector frame
   }
-  
-}
 
-
-
-
-ThorQP::ThorQP()
-{
-  m_are_matrices_updated=false;
-  m_are_position_bounds_active=false;
-  m_are_torque_bounds_active=false;
-  m_use_cbf=false;
-}
-
-void ThorQP::setCBFParameters ( const double& a_s, const double& T_r, const double& C, const double& alpha )
-{
-  m_a_s=a_s;
-  m_T_r=T_r;
-  m_C=C;
-  m_alpha=alpha;
-}
-
-void ThorQP::setPinocchioModel ( const pinocchio::Model& model )
-{
-  m_model=model;
-  m_data=pinocchio::Data(m_model);
-  // m_eeFrameId = model.getFrameId("end_effector"); // Example, if you have an end-effector frame
-}
-
-void ThorQP::setConstraints ( const Eigen::VectorXd& qmax, const Eigen::VectorXd& qmin, const Eigen::VectorXd& Dqmax, const Eigen::VectorXd& DDqmax, const Eigen::VectorXd& tau_max )
-{
-  m_qmax=qmax;
-  m_qmin=qmin;
-  m_Dqmax=Dqmax;
-  m_DDqmax=DDqmax;
-  m_tau_max=tau_max;
-  m_are_matrices_updated=false;
-  
-}
-
-void ThorQP::activatePositionBounds(const bool enable_pos_bounds)
-{
-  if (m_are_position_bounds_active!=enable_pos_bounds)
+  void ThorQP::setConstraints ( const Eigen::VectorXd& qmax, const Eigen::VectorXd& qmin, const Eigen::VectorXd& Dqmax, const Eigen::VectorXd& DDqmax, const Eigen::VectorXd& tau_max )
   {
-    m_are_position_bounds_active=enable_pos_bounds;
+    m_qmax=qmax;
+    m_qmin=qmin;
+    m_Dqmax=Dqmax;
+    m_DDqmax=DDqmax;
+    m_tau_max=tau_max;
     m_are_matrices_updated=false;
-//    ROS_INFO("Position bounds activated. Execute update matrices to load the new options.");
+    
   }
-}
 
-void ThorQP::activateTorqueBounds(const bool enable_tau_bounds)
-{
-  if (m_are_position_bounds_active!=enable_tau_bounds)
+  void ThorQP::activatePositionBounds(const bool enable_pos_bounds)
   {
-    m_are_torque_bounds_active=enable_tau_bounds;
-    m_are_matrices_updated=false;
-//    ROS_INFO("Torque bounds activated. Execute update matrices to load the new options.");
+    if (m_are_position_bounds_active!=enable_pos_bounds)
+    {
+      m_are_position_bounds_active=enable_pos_bounds;
+      m_are_matrices_updated=false;
+  //    ROS_INFO("Position bounds activated. Execute update matrices to load the new options.");
+    }
   }
-}
 
-void ThorQP::activateCbfBounds(const bool enable_cbf_bounds)
-{
-  if (m_use_cbf!=enable_cbf_bounds)
+  void ThorQP::activateTorqueBounds(const bool enable_tau_bounds)
   {
-    m_use_cbf=enable_cbf_bounds;
-    m_are_matrices_updated=false;
+    if (m_are_position_bounds_active!=enable_tau_bounds)
+    {
+      m_are_torque_bounds_active=enable_tau_bounds;
+      m_are_matrices_updated=false;
+  //    ROS_INFO("Torque bounds activated. Execute update matrices to load the new options.");
+    }
   }
-}
 
-bool ThorQP::arePositionBoundsActive()
-{
-  return m_are_position_bounds_active;
-}
+  void ThorQP::activateCbfBounds(const bool enable_cbf_bounds)
+  {
+    if (m_use_cbf!=enable_cbf_bounds)
+    {
+      m_use_cbf=enable_cbf_bounds;
+      m_are_matrices_updated=false;
+    }
+  }
 
+  bool ThorQP::arePositionBoundsActive()
+  {
+    return m_are_position_bounds_active;
+  }
 
-void ThorQP::setIntervals ( const unsigned int& num_of_intervals, 
-                            const unsigned int& num_of_joints,
-                            const double& control_horizon_time, 
-                            const double& computing_period )
-{
-  m_dt=computing_period;
-  m_control_horizon_time=control_horizon_time;
-  m_nax=num_of_joints;
-  m_nc=num_of_intervals;
-  
-  m_are_matrices_updated=false;
+  void ThorQP::setIntervals ( const unsigned int& num_of_intervals,
+                              const unsigned int& num_of_joints,
+                              const double& control_horizon_time, 
+                              const double& computing_period )
+  {
+    m_dt=computing_period;
+    m_control_horizon_time=control_horizon_time;
+    m_nax=num_of_joints;
+    m_nc=num_of_intervals;
+    
+    m_are_matrices_updated=false;
 
-  m_use_input_blocking=true;
-  
-  m_sol.resize( (m_nax+1)*m_nc);
-  m_sol.setZero();
-  
-}
-
-void ThorQP::setIntervals ( const unsigned int& num_of_intervals,
-                            const unsigned int& num_of_joints,
-                            const double& control_horizon_time,
-                            const double& computing_period,
-                            const bool & use_input_blocking)
-{
-  m_dt=computing_period;
-  m_control_horizon_time=control_horizon_time;
-  m_nax=num_of_joints;
-  m_nc=num_of_intervals;
-
-  m_are_matrices_updated=false;
-
-  if (use_input_blocking)
     m_use_input_blocking=true;
-  else
-    m_use_input_blocking=false;
+    
+    m_sol.resize( (m_nax+1)*m_nc);
+    m_sol.setZero();
+    
+  }
 
-  m_sol.resize( (m_nax+1)*m_nc);
-  m_sol.setZero();
+  void ThorQP::setIntervals ( const unsigned int& num_of_intervals,
+                              const unsigned int& num_of_joints,
+                              const double& control_horizon_time,
+                              const double& computing_period,
+                              const bool & use_input_blocking)
+  {
+    m_dt=computing_period;
+    m_control_horizon_time=control_horizon_time;
+    m_nax=num_of_joints;
+    m_nc=num_of_intervals;
 
-}
+    m_are_matrices_updated=false;
 
-void ThorQP::setWeigthFunction ( const double& lambda_acc, 
-                                 const double& lambda_tau, 
-                                 const double& lambda_jerk, 
-                                 const double& lambda_scaling, 
-                                 const double& lambda_clik )
+    if (use_input_blocking)
+      m_use_input_blocking=true;
+    else
+      m_use_input_blocking=false;
+
+    m_sol.resize( (m_nax+1)*m_nc);
+    m_sol.setZero();
+
+  }
+
+  void ThorQP::setWeigthFunction ( const double& lambda_acc, 
+                                  const double& lambda_tau, 
+                                  const double& lambda_jerk, 
+                                  const double& lambda_scaling, 
+                                  const double& lambda_clik )
 {
   m_lambda_acc=lambda_acc;
   m_lambda_tau=lambda_tau;
@@ -346,6 +343,12 @@ void ThorQP::setWeigthFunction ( const double& lambda_acc,
   m_lambda_scaling=lambda_scaling;
   m_lambda_clik=lambda_clik;
   m_are_matrices_updated=false;
+}
+
+void ThorQP::setFrameIds(const std::vector<unsigned int>& frameIds)
+{
+  m_frameIds = frameIds;
+  m_are_matrices_updated = false;
 }
 
 void ThorQP::updateMatrices()
@@ -472,14 +475,15 @@ void ThorQP::updateMatrices()
 //       m_ci0.segment(9*m_nc*m_nax+2*m_nc+ic*m_nax,m_nax)= m_tau_max;
 //     }
 //   }
+  // 1 constraint for each frame - human point couple (TODO) and prediction interval
   if (m_use_cbf)
   {
     int old_cols=m_CI.cols();
-    m_CI.conservativeResize(m_CI.rows(), m_CI.cols()+m_nc);
-    m_ci0.conservativeResize(m_ci0.size() + m_nc);
+    m_CI.conservativeResize(m_CI.rows(), m_CI.cols()+m_frameIds.size()*m_nc);
+    m_ci0.conservativeResize(m_ci0.size() +m_frameIds.size()*m_nc);
 
-    m_CI.block(0,old_cols, m_CI.rows(), m_nc).setZero();
-    m_ci0.tail(m_nc).setZero();
+    m_CI.block(0,old_cols, m_CI.rows(),+m_frameIds.size()*m_nc).setZero();
+    m_ci0.tail(m_frameIds.size()*m_nc).setZero();
   }
 
   m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
@@ -598,25 +602,18 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
                                           const Eigen::VectorXd& x0,
                                           const Eigen::Vector3d &vh,
                                           const Eigen::Vector3d &p_human, 
-                                          const unsigned int &frameId,
                                           Eigen::VectorXd& next_acc, 
                                           double& next_scaling)
 {
-  // std::cout << "Computing constrained solution." << std::endl;
   // Build cost matrices and baseline inequality vector
   computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
-  // std::cout << "1" << std::endl;
   Eigen::VectorXd ci0=m_ci0;
  
   int n_cols = m_CI.cols();
 
   // Velocity bounds
-  // std::cout << "ci0 size: " << ci0.size() << " x 1" << std::endl;
-  // std::cout << "m_ci0 size: " << m_ci0.size() << " x 1" << std::endl;
-
   ci0.segment(2*m_nc*(m_nax+1)           ,m_nax*m_nc)+=m_velocity_free_resp*x0.tail(m_nax); // vel lower bounds
   ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc,m_nax*m_nc)-=m_velocity_free_resp*x0.tail(m_nax); // vel upper bounds
-  // std::cout << "2" << std::endl;
   // Position bounds
   if (m_are_position_bounds_active)
   {
@@ -625,7 +622,6 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
     ci0.segment(2*m_nc*(m_nax+1)+4*m_nax*m_nc,m_nax*m_nc)+=m_invariance_free_resp*x0; // invariance lower constraint
     ci0.segment(2*m_nc*(m_nax+1)+5*m_nax*m_nc,m_nax*m_nc)-=m_invariance_free_resp*x0; // invariance upper constraint
   }
-  // std::cout << "3" << std::endl;
   // if  (m_are_torque_bounds_active)
   // {
   //   for (unsigned int idx=0;idx<m_nc;idx++)
@@ -644,132 +640,145 @@ double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
     Eigen::Vector3d p_r, d_vec, e_rh, v_r, p_h;
     Eigen::RowVectorXd L_g, A_barrier;
 
-    double d, v_rel, vh_proj, d_max, theta, L_f, b_barrier;
+    double d, v_rel, vh_proj, d_min, theta, L_f, b_barrier;
 
     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> J, dJ;
     J.resize(m_nax, m_model.nv);
-    // dJ.resize(m_nax, m_model.nv);
+    dJ.resize(m_nax, m_model.nv);
 
     Eigen::Matrix<double,3,Eigen::Dynamic> Jlin, dJlin;
     Eigen::Matrix<double, 2, 3> g;
     std::pair<Eigen::Vector2d, Eigen::Matrix<double, 2, 3>> state_derivative;
+    double h_min = 1000.0; // Minimum value for the barrier function
 
-    for ( size_t i = 0; i< m_nc; i++ )
+    for (size_t j = 0; j < m_frameIds.size(); ++j)
     {
-      // p_h prediction
-      for (size_t j=0; j< 3; j++)
+      size_t frameId = m_frameIds[j];
+      for ( size_t i = 0; i< m_nc; i++ )
       {
-        p_h(j) = p_human(j) + vh(j) * m_prediction_time(i); // human position at time t
+        // p_h prediction
+        for (size_t k=0; k< 3; k++)
+        {
+          p_h(k) = p_human(k) + vh(k) * m_prediction_time(i); // human position at time t
+        }
+        const Eigen::VectorXd &q  = m_prediction_pos.segment(m_nax*i, m_nax);
+        const Eigen::VectorXd &dq = m_prediction_vel.segment(m_nax*i, m_nax);
+        // std::cout << "q: " << q.transpose() << std::endl;
+        // std::cout << "dq: " << dq.transpose() << std::endl;
+        // std::cout << "CBF constraint" << std::endl;
+        // Pinocchio kinematics 
+        //pinocchio::forwardKinematics(m_model, m_data, q, dq);
+        pinocchio::computeForwardKinematicsDerivatives(m_model, m_data, q, dq, 0.0*dq);
+        pinocchio::updateFramePlacements(m_model, m_data);
+        // std::cout << "Pinocchio kinematics done" << std::endl;
+        p_r   = m_data.oMf[frameId].translation();   // robot pos
+        // std::cout << "Robot position: " << p_r.transpose() << std::endl;
+        // std::cout << "Human position: " << p_h.transpose() << std::endl;
+        d_vec = p_r - p_h;                            // to human
+        d     = std::max(1e-6, d_vec.norm());           // avoid 0
+        e_rh  = d_vec / d;       
+
+        vh_proj = e_rh.dot(vh);                       // unit dir
+        
+        auto twist =  pinocchio::getFrameVelocity(m_model, m_data, frameId, pinocchio::LOCAL_WORLD_ALIGNED);
+        v_r = twist.linear();                // robot linear velocity
+        v_rel = v_r.dot(e_rh);                  // robot velocity
+        
+        // std::cout << "Distance to human: " << d << std::endl;
+        // Jacobian (linear part) -----------------------------------------------
+        // std::cout << "q:" << q.transpose() << std::endl;
+        pinocchio::computeFrameJacobian(m_model, 
+                                        m_data,
+                                        q,
+                                        frameId,
+                                        pinocchio::LOCAL_WORLD_ALIGNED, 
+                                        J);
+        Jlin = J.topRows<3>();   // 3×n
+        //Eigen::RowVectorXd Jd = e_rh.transpose() * Jlin;                 // 1×n
+
+        // computeFrameJacobianDot(m_model,
+        //         m_data,
+        //         frameId,
+        //         q,
+        //         dq,
+        //         pinocchio::LOCAL_WORLD_ALIGNED,
+        //         m_dt, // numerical differentiation step
+        //         dJ
+        //     );
+        pinocchio::computeJointJacobiansTimeVariation(m_model, 
+                                        m_data, 
+                                        q, 
+                                        dq);
+        pinocchio::getFrameJacobianTimeVariation(m_model, m_data, frameId, pinocchio::LOCAL_WORLD_ALIGNED, dJ);
+        // std::cout << "dJ: " << dJ << std::endl;                              
+        dJlin = dJ.topRows<3>(); // 3×n
+        // std::cout << "Jacobian computed" << std::endl;
+
+        // barrier terms ----------------------------------------
+        get_d_min(vh_proj, v_rel, d_min);  // d_min is the minimum distance to human
+        double h_temp = d - d_min;   // barrier value
+
+        if (h_temp < h_min)
+        {
+          h_min = h_temp;  // keep the minimum value
+        }
+        // std::cout << "Barrier value: " << m_h << std::endl;
+        // std::cout << "Distance to human: " << d << std::endl;
+        // std::cout << "d_min: " << d_min << std::endl;
+        // std::cout << "v_rel: " << v_rel << std::endl;
+        // std::cout << "vh_proj: " << vh_proj << std::endl;
+        // std::cout << "Jlin: " << Jlin << std::endl;
+        // std::cout << "dJlin: " << dJlin << std::endl;
+        get_theta(vh_proj, v_rel, theta);
+
+        state_derivative = range_state_derivative(d_vec, v_r);
+        f = state_derivative.first;  // 2×1
+        g = state_derivative.second;  // 2×3
+
+        partial_h_on_x << 1.0,      // ∂h/∂d
+                          -theta;    // ∂h/∂v_rel
+                          
+        // Lie derivatives                 
+        L_f = (partial_h_on_x.dot(f));  // 1×1
+        L_g = partial_h_on_x * g;
+        // std::cout << "L_g: " << L_g << std::endl;
+        // std::cout << "partial_h_on_x: " << partial_h_on_x << std::endl;
+        // std::cout << "g: " << g << std::endl;
+        A_barrier = L_g * Jlin;   // 1×n
+        b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_alpha * h_temp;  // scalar
+
+        // Eigen::RowVectorXd A_barrier = -Theta * Jd;   // 1×n  (note minus)
+        // double             b_barrier = -Jd.dot(dq) + m_alpha * m_h;
+        // std::cout << "Barrier terms computed" << std::endl;
+        // Append new row to CI / ci0  (quadprog expects CI^T x + ci0 ≥ 0) -------
+        // Note: CI is transposed in the solve_quadprog call, so we append a row
+        m_CI.col(n_cols - m_nc*(j+1) + i).segment(m_nax * i, m_nax) = A_barrier.transpose();  // A_barrier is 1×nax
+        ci0(n_cols - m_nc*(j+1) + i) = b_barrier;
+
+  //       // std::cout << "CI and ci0 updated" << std::endl;
+  //       std::cout << "A_barrier: " << A_barrier << std::endl;
+  //       std::cout << "b_barrier: " << b_barrier << std::endl;
+  // //      std::cout << n_cols - m_nc + i << std::endl;
       }
-      const Eigen::VectorXd &q  = m_prediction_pos.segment(m_nax*i, m_nax);
-      const Eigen::VectorXd &dq = m_prediction_vel.segment(m_nax*i, m_nax);
-      // std::cout << "q: " << q.transpose() << std::endl;
-      // std::cout << "dq: " << dq.transpose() << std::endl;
-      // std::cout << "CBF constraint" << std::endl;
-      // Pinocchio kinematics 
-      pinocchio::forwardKinematics(m_model, m_data, q, dq);
-      pinocchio::updateFramePlacements(m_model, m_data);
-      // std::cout << "Pinocchio kinematics done" << std::endl;
-      p_r   = m_data.oMf[frameId].translation();   // robot pos
-      // std::cout << "Robot position: " << p_r.transpose() << std::endl;
-      // std::cout << "Human position: " << p_h.transpose() << std::endl;
-      d_vec = p_r - p_h;                            // to human
-          d     = std::max(1e-6, d_vec.norm());           // avoid 0
-      e_rh  = d_vec / d;       
-
-      vh_proj = e_rh.dot(vh);                       // unit dir
-      
-      auto twist =  pinocchio::getFrameVelocity(m_model, m_data, frameId, pinocchio::LOCAL_WORLD_ALIGNED);
-      v_r = twist.linear();                // robot linear velocity
-      v_rel = v_r.dot(e_rh);                  // robot velocity
-      
-      // std::cout << "Distance to human: " << d << std::endl;
-      // Jacobian (linear part) -----------------------------------------------
-      // std::cout << "q:" << q.transpose() << std::endl;
-      pinocchio::computeFrameJacobian(m_model, 
-                                      m_data,
-                                      q,
-                                      frameId,
-                                      pinocchio::LOCAL_WORLD_ALIGNED, 
-                                      J);
-      Jlin = J.topRows<3>();   // 3×n
-      //Eigen::RowVectorXd Jd = e_rh.transpose() * Jlin;                 // 1×n
-
-      computeFrameJacobianDot(m_model,
-              m_data,
-              frameId,
-              q,
-              dq,
-              pinocchio::LOCAL_WORLD_ALIGNED,
-              m_dt, // numerical differentiation step
-              dJ
-          );
-     dJlin = dJ.topRows<3>(); // 3×n
-      // std::cout << "Jacobian computed" << std::endl;
-
-      // barrier terms ----------------------------------------
-      d_max = m_C
-            + v_rel * v_rel / (2.0 * m_a_s)
-            + v_rel * m_T_r
-            + v_rel * vh_proj / m_a_s
-            + m_T_r * vh_proj;
-
-      m_h = d - d_max;   // barrier value
-      // std::cout << "Barrier value: " << m_h << std::endl;
-      // std::cout << "Distance to human: " << d << std::endl;
-      // std::cout << "d_max: " << d_max << std::endl;
-      // std::cout << "v_rel: " << v_rel << std::endl;
-      // std::cout << "vh_proj: " << vh_proj << std::endl;
-      // std::cout << "Jlin: " << Jlin << std::endl;
-      // std::cout << "dJlin: " << dJlin << std::endl;
-      theta = v_rel / m_a_s + m_T_r + vh_proj / m_a_s;
-
-      state_derivative = range_state_derivative(d_vec, v_r);
-      f = state_derivative.first;  // 2×1
-      g = state_derivative.second;  // 2×3
-
-      partial_h_on_x << 1.0,      // ∂h/∂d
-                        theta;    // ∂h/∂v_rel
-                        
-      // Lie derivatives                 
-      L_f = (partial_h_on_x.dot(f));  // 1×1
-      L_g = partial_h_on_x * g;
-      // std::cout << "L_g: " << L_g << std::endl;
-      // std::cout << "partial_h_on_x: " << partial_h_on_x << std::endl;
-      // std::cout << "g: " << g << std::endl;
-      A_barrier = L_g * Jlin;   // 1×n
-      b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_alpha * m_h;  // scalar
-
-      // Eigen::RowVectorXd A_barrier = -Theta * Jd;   // 1×n  (note minus)
-      // double             b_barrier = -Jd.dot(dq) + m_alpha * m_h;
-      // std::cout << "Barrier terms computed" << std::endl;
-      // Append new row to CI / ci0  (quadprog expects CI^T x + ci0 ≥ 0) -------
-      // Note: CI is transposed in the solve_quadprog call, so we append a row
-      m_CI.col(n_cols - m_nc + i).segment(m_nax * i, m_nax) = A_barrier.transpose();  // A_barrier is 1×nax
-      ci0(n_cols - m_nc + i) = b_barrier;
-
-      // std::cout << "CI and ci0 updated" << std::endl;
-      std::cout << "A_barrier: " << A_barrier << std::endl;
-      std::cout << "b_barrier: " << b_barrier << std::endl;
-//      std::cout << n_cols - m_nc + i << std::endl;
+      // std::cout << m_CI.block(0,n_cols - 2*m_nc, m_CI.rows(), 2*m_nc) << std::endl;
+      // std::cout << ci0.segment(n_cols - m_nc, m_nc).transpose()  << std::endl;
     }
-    std::cout << m_CI.block(0,n_cols - m_nc, m_CI.rows(), m_nc) << std::endl;
-    std::cout << ci0.segment(n_cols - m_nc, m_nc).transpose() << std::endl;
-
+    m_h = h_min; // Store the minimum barrier value
+    std::cout << "Minimum barrier value: " << m_h << std::endl;
   }
   
   Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
   std::cout << "Quadratic program solved" << std::endl;
-  std::cout << "M_CI size: " << m_CI.rows() << " x " << m_CI.cols() << std::endl;
-  std::cout << "m_ci0 size: " << m_ci0.size() << " x 1" << std::endl;
+  // std::cout << "M_CI size: " << m_CI.rows() << " x " << m_CI.cols() << std::endl;
+  // std::cout << "m_ci0 size: " << m_ci0.size() << " x 1" << std::endl;
   next_acc=m_sol.head(m_nax);
   std::cout << "Next acceleration: " << next_acc.transpose() << std::endl;
   next_scaling=m_sol (m_nax*m_nc);
   m_prediction_vel = m_velocity_forced_resp*m_sol.head(m_nc*m_nax)+m_velocity_free_resp*x0.tail(m_nax);
   m_prediction_pos = m_position_forced_resp*m_sol.head(m_nc*m_nax)+m_position_free_resp*x0;
-  std::cout << "Predicted position: " << m_prediction_pos.transpose() << std::endl;
-  std::cout << "Prediction instants: " << m_prediction_time.transpose() << std::endl;
-  std::cout << "control intervals: " << m_control_intervals.transpose() << std::endl;
+  // std::cout << "Predicted position: " << m_prediction_pos.transpose() << std::endl;
+  // std::cout << "Prediction instants: " << m_prediction_time.transpose() << std::endl;
+  // std::cout << "control intervals: " << m_control_intervals.transpose() << std::endl;
   m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
   // std::cout << "Solution computed" << std::endl;
   return m_h;

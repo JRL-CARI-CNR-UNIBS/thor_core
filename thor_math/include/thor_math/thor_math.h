@@ -8,11 +8,13 @@
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>
 #include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/kinematics-derivatives.hpp>
+
 namespace thor 
 {
 namespace math
 {
-  
+
 bool computeEvolutionMatrix( const Eigen::Ref<Eigen::VectorXd> prediction_time,
                              const Eigen::Ref<Eigen::VectorXd> control_intervals,
                              const unsigned int& nax,
@@ -121,7 +123,12 @@ protected:
   double             m_alpha;    
   double             m_h;              // barrier value
   rdyn::ChainPtr  m_chain;
-  
+  std::vector<unsigned int> m_frameIds;
+
+
+  void get_d_min(const double& v_h, const double& v_r, double& d_min);
+  void compute_h(const double& v_h, const double& v_r, const double& d, double& h);
+  void compute_theta(const double& v_h, const double& v_r, double& theta);
   virtual void computeActualMatrices( const Eigen::VectorXd& targetDq,
                               const Eigen::VectorXd& next_targetQ,
                               const double& target_scaling,
@@ -241,7 +248,9 @@ public:
                     const bool & use_input_blocking);
 
   void setWeigthFunction( const double& lambda_acc, const double& lambda_tau, const double& lambda_jerk, const double& lambda_scaling, const double& lambda_clik );
-  
+
+  void setFrameIds(const std::vector<unsigned int>& frameIds);
+
   bool needUpdate(){return !m_are_matrices_updated;};
 
   virtual void updateMatrices();
@@ -259,7 +268,6 @@ public:
                                       const Eigen::VectorXd& x0,
                                       const Eigen::Vector3d& vh,
                                       const Eigen::Vector3d& p_h,
-                                      const unsigned int& frameId,
                                       Eigen::VectorXd& next_acc,
                                       double& next_scaling
   );
