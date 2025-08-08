@@ -120,7 +120,7 @@ class ThorQP
     pinocchio::Model   m_model;          // robot model (built from URDF once)
     pinocchio::Data    m_data;           // Pinocchio runtime buffers
     double             m_a_s, m_T_r, m_C;// parameters from your d_max formula
-    double             m_alpha;    
+    double             m_gamma;    
     double             m_h;              // barrier value
     rdyn::ChainPtr  m_chain;
     std::vector<unsigned int> m_frameIds;
@@ -220,7 +220,7 @@ class ThorQP
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     ThorQP();
 
-    void setCBFParameters ( const double& a_s, const double& T_r, const double& C, const double& alpha );
+    void setCBFParameters ( const double& a_s, const double& T_r, const double& C, const double& gamma );
 
     void setPinocchioModel ( const pinocchio::Model& model );
 

@@ -380,12 +380,12 @@ namespace math
   }
 
 
-  void ThorQP::setCBFParameters ( const double& a_s, const double& T_r, const double& C, const double& alpha )
+  void ThorQP::setCBFParameters ( const double& a_s, const double& T_r, const double& C, const double& gamma )
   {
     m_a_s=a_s;
     m_T_r=T_r;
     m_C=C;
-    m_alpha=alpha;
+    m_gamma=gamma;
   }
 
   void ThorQP::setPinocchioModel ( const pinocchio::Model& model )
@@ -918,13 +918,13 @@ namespace math
           // std::cout << "partial_h_on_x: " << partial_h_on_x << std::endl;
           // std::cout << "g: " << g << std::endl;
           A_barrier = L_g * Jlin;   // 1×n
-          b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_alpha * h_temp;  // scalar
+          b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_gamma * h_temp;  // scalar
           if (b_barrier == 0.0)
           {
             b_barrier = 1e-6; // avoid numerical issues
           }
           // Eigen::RowVectorXd A_barrier = -Theta * Jd;   // 1×n  (note minus)
-          // double             b_barrier = -Jd.dot(dq) + m_alpha * m_h;
+          // double             b_barrier = -Jd.dot(dq) + m_gamma * m_h;
           // std::cout << "Barrier terms computed" << std::endl;
           // Append new row to CI / ci0  (quadprog expects CI^T x + ci0 ≥ 0) -------
           // Note: CI is transposed in the solve_quadprog call, so we append a row
