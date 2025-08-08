@@ -83,6 +83,6 @@ while True:
         print(f"d: {df.iloc[idx]['d']}")
         print(f"vr: {df.iloc[idx]['vr']}")
         print(f"vh: {df.iloc[idx]['vh']}")
-        time.sleep(0.005)  # Adjust for speed
+        #time.sleep(0.001)  # Adjust for speed
     print("Restarting animation from beginning.")
     time.sleep(0.5)

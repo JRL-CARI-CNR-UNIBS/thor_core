@@ -8,7 +8,7 @@ namespace thor
 {
 namespace math
 {
-
+  const double zero_vel = 1e-6; // Threshold for zero velocity
   int computeRank(const Eigen::MatrixXd& M, double tol = 1e-10) {
     Eigen::JacobiSVD<Eigen::MatrixXd> svd(M);
     const Eigen::VectorXd& singularValues = svd.singularValues();
@@ -269,9 +269,9 @@ namespace math
   void ThorQP::compute_h(const double& v_h, const double& v_r, const double& d, double& h)
   {
    double coef, d_min;
-    if (v_r < 0.0)
+    if (v_r < zero_vel)
     {
-      if (v_h > 0.0)
+      if (v_h > zero_vel)
       {
         h = d - (m_C
                 + v_r * v_r / (2.0 * m_a_s)
@@ -300,7 +300,7 @@ namespace math
       }
       else 
       {
-        if (v_h < 0)
+        if (v_h < zero_vel)
         {
           d_min = m_C;
           coef = m_T_r;
@@ -326,10 +326,10 @@ namespace math
 
   void ThorQP::compute_theta(const double& v_h, const double& v_r, const double& d, std::vector<double>& theta)
   {
-    if (v_r < 0.0)
+    if (v_r < zero_vel)
     {
       theta[0] = 1.0;
-      if (v_h > 0.0)
+      if (v_h > zero_vel)
       {
         theta[1] =   v_r / m_a_s
                 - m_T_r
@@ -356,7 +356,7 @@ namespace math
       else
       {
         double coef, d_min;
-        if (v_h < 0)
+        if (v_h < zero_vel)
         {
           d_min = m_C;
           coef = m_T_r;
@@ -374,7 +374,7 @@ namespace math
         {
           theta[0] = 1.0;
         }
-        theta[1] =  -coef; // the minus sign because we use -theta in the optimization problem
+        theta[1] =  coef; // the minus sign because we use -theta in the optimization problem
       }
     }
   }
@@ -948,12 +948,12 @@ namespace math
     // std::cout << "M_CI: rank (fcn):" << computeRank(m_CI) << std::endl;
     // std::cout << "m_ci0: " << ci0.tail(50).transpose() << std::endl;
     double sol = Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
-    // std::cout << "Solution: " << std::to_string(sol) << std::endl;
+    std::cout << "Solution: " << std::to_string(sol) << std::endl;
     // std::cout << "Sol is nan? " << std::isnan(sol) << std::endl;
     // std::cout << "Sol is nan? " << (double)(sol==sol) << std::endl;
     // std::cout << "NAN is nan? " << std::isnan(NAN) << std::endl;
 
-    if (std::to_string(sol) == "nan")
+    if (std::to_string(sol) == "nan" or std::to_string(sol) == "inf" or std::to_string(sol) == "-inf")
     {
      throw std::runtime_error("Problem is not feasible. Check the constraints and the target values.");
     }
