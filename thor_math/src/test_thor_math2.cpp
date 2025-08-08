@@ -200,7 +200,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
             human_circle(nominal_t, p_h, vh);
             std::cout << __LINE__ << " ... " << std::endl;
             printf("aaa\n");
-            std::vector<double> res = qp.computedCostrainedSolution(targetDq,next_targetQ,target_scaling,qp.getState(), vh, p_h, next_acc,scaling);
+            std::vector<double> res = qp.computedCostrainedSolution(targetDq,next_targetQ,target_scaling,qp.getState(), next_acc,scaling);//, vh, p_h);
             // std::cout << __LINE__ << " ... " << std::endl;
             // std::cout << "Next Acceleration: " << next_acc.transpose() << std::endl;
             // std::cout << "Next Scaling: " << scaling << std::endl;

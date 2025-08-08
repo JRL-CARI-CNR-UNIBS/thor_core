@@ -759,10 +759,11 @@ namespace math
                                             const Eigen::VectorXd& next_targetQ, 
                                             const double& target_scaling, 
                                             const Eigen::VectorXd& x0,
-                                            const Eigen::Vector3d &vh,
-                                            const Eigen::Vector3d &p_human, 
                                             Eigen::VectorXd& next_acc, 
-                                            double& next_scaling)
+                                            double& next_scaling,
+                                            const Eigen::Vector3d &vh, 
+                                            const Eigen::Vector3d &p_human
+                                            )
   {
     std::vector<double> return_value(6, 0.0);
     // Build cost matrices and baseline inequality vector
