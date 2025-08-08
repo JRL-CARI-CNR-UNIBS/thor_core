@@ -125,18 +125,19 @@ class ThorQP
     rdyn::ChainPtr  m_chain;
     std::vector<unsigned int> m_frameIds;
 
+    bool m_use_cbf_move_away = false; // if true, the CBF will try to mantain safaty distance also when the robot is moving away
 
-    void get_d_min(const double& v_h, const double& v_r, double& d_min);
+    void get_d_min(const double& v_h, const double& v_r, const double& d, double& d_min);
     void compute_h(const double& v_h, const double& v_r, const double& d, double& h);
-    void compute_theta(const double& v_h, const double& v_r, double& theta);
-    
+    void compute_theta(const double& v_h, const double& v_r, const double& d, std::vector<double>& theta);
+
     virtual void computeActualMatrices( const Eigen::VectorXd& targetDq,
                                 const Eigen::VectorXd& next_targetQ,
                                 const double& target_scaling,
                                 const Eigen::VectorXd& x0);
     int id = 0;
   public:
-
+    // TODO: Add copy of pinocchio model and data 
     ThorQP& operator=(const ThorQP& other) {
       if (this != &other) {
         m_are_matrices_updated = other.m_are_matrices_updated;
@@ -235,8 +236,10 @@ class ThorQP
 
     void activateCbfBounds(const bool enable_cbf_bounds);
     
+    void activateCbfMoveAway(const bool enable_cbf_move_away);
+
     bool arePositionBoundsActive();
-    
+
     void setIntervals(const unsigned int& num_of_intervals,
                       const unsigned int& num_of_joints,
                       const double& control_horizon_time,
@@ -252,6 +255,7 @@ class ThorQP
 
     void setFrameIds(const std::vector<unsigned int>& frameIds);
 
+
     bool needUpdate(){return !m_are_matrices_updated;};
 
     virtual void updateMatrices();
@@ -263,7 +267,7 @@ class ThorQP
                                         Eigen::VectorXd& next_acc,
                                         double& next_scaling
                                     );
-    virtual double computedCostrainedSolution(  const Eigen::VectorXd& targetDq,
+    virtual std::vector<double> computedCostrainedSolution(  const Eigen::VectorXd& targetDq,
                                         const Eigen::VectorXd& next_targetQ,
                                         const double& target_scaling,
                                         const Eigen::VectorXd& x0,

@@ -77,7 +77,12 @@ while True:
         ph = row[ph_cols].values.astype(float)
         T = pin.SE3(np.eye(3), ph)
         viz.viewer['/human'].set_transform(T.homogeneous)
-        print(f"h: {df.iloc[idx][' h']}")
-        time.sleep(0.002)  # Adjust for speed
+        print(f"h: {df.iloc[idx]['h']}")
+        print(f"n_c: {df.iloc[idx]['n_c']}")
+        print(f"frameId: {df.iloc[idx]['frameId']}")
+        print(f"d: {df.iloc[idx]['d']}")
+        print(f"vr: {df.iloc[idx]['vr']}")
+        print(f"vh: {df.iloc[idx]['vh']}")
+        time.sleep(0.005)  # Adjust for speed
     print("Restarting animation from beginning.")
     time.sleep(0.5)

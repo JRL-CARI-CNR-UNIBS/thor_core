@@ -1,4 +1,5 @@
 #include <thor_math/thor_math.h>
+#include <cmath>
 // #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>
 #include <pinocchio/algorithm/joint-configuration.hpp>
@@ -7,6 +8,18 @@ namespace thor
 {
 namespace math
 {
+
+  int computeRank(const Eigen::MatrixXd& M, double tol = 1e-10) {
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(M);
+    const Eigen::VectorXd& singularValues = svd.singularValues();
+    int rank = 0;
+    for (int i = 0; i < singularValues.size(); ++i) {
+        if (singularValues(i) > tol) {
+            ++rank;
+        }
+    }
+    return rank;
+}
 
   std::pair<Eigen::Vector2d, Eigen::Matrix<double, 2, 3>> range_state_derivative(const Eigen::Vector3d& r, const Eigen::Vector3d& v, double eps = 1e-12)
   {
@@ -195,36 +208,174 @@ namespace math
     m_use_cbf=false;
   }
 
-  void ThorQP::get_d_min(const double& v_h, const double& v_r, double& d_min)
+  void ThorQP::get_d_min(const double& v_h, const double& v_r, const double& d, double& d_min)
   {
+    double coef;
     if (v_r < 0.0)
     {
-      d_min = m_C
-              + v_r * v_r / (2.0 * m_a_s)
-              - v_r * m_T_r
-              - v_r * v_h / m_a_s
-              + m_T_r * v_h;
+      if (v_r < 0.0 && v_h > 0.0)
+      {
+        d_min = m_C
+                + v_r * v_r / (2.0 * m_a_s)
+                - v_r * m_T_r
+                - v_r * v_h / m_a_s
+                + m_T_r * v_h;
+      }
+      else if (v_r < 0.0 && v_h <= v_r)
+      {
+        d_min = m_C;
+      }
+      else if (v_r < 0.0 && v_h > v_r )
+      {
+        d_min = m_C 
+                + (v_h - v_r) * (v_h - v_r) * 0.5 / m_a_s
+                - (v_h - v_r) * m_T_r;
+      }
     }
-    else
+    else 
     {
-      d_min = m_C
-              + (v_h - v_r) * m_T_r
-              + (v_h - v_r) * (v_h - v_r) / (2.0 * m_a_s);
+      if (m_use_cbf_move_away)
+      {
+        d_min = m_C
+                + (v_h - v_r) * m_T_r
+                + (v_h - v_r) * (v_h - v_r) / (2.0 * m_a_s);
+      }
+      else 
+      {
+        if (v_h < 0)
+        {
+          d_min = m_C;
+          coef = m_T_r;
+        }
+        else
+        {
+            d_min = m_C + v_h * m_T_r;
+            coef = m_T_r + v_h / m_a_s;
+        }
+        if (d < d_min)
+        {
+            d_min = d - coef*v_r;
+        }
+        else
+        {
+            //x = np.array([d-dmin, coef*v])
+            //h = np.linalg.norm(x, ord=1)
+            d_min =  d_min - coef * v_r;
+        }
+      }
     }
   }
 
-  void ThorQP::compute_theta(const double& v_h, const double& v_r, double& theta)
+  void ThorQP::compute_h(const double& v_h, const double& v_r, const double& d, double& h)
+  {
+   double coef, d_min;
+    if (v_r < 0.0)
+    {
+      if (v_h > 0.0)
+      {
+        h = d - (m_C
+                + v_r * v_r / (2.0 * m_a_s)
+                - v_r * m_T_r
+                - v_r * v_h / m_a_s
+                + m_T_r * v_h);
+      }
+      else if (v_h <= v_r)
+      {
+        h = d - m_C;
+      }
+      else
+      {
+        h = d - (m_C 
+                + (v_h - v_r) * (v_h - v_r) * 0.5 / m_a_s
+                - (v_h - v_r) * m_T_r);
+      }
+    }
+    else 
+    {
+      if (m_use_cbf_move_away)
+      {
+        h = d - (m_C
+                + (v_h - v_r) * m_T_r
+                + (v_h - v_r) * (v_h - v_r) / (2.0 * m_a_s));
+      }
+      else 
+      {
+        if (v_h < 0)
+        {
+          d_min = m_C;
+          coef = m_T_r;
+        }
+        else
+        {
+            d_min = m_C + v_h * m_T_r;
+            coef = m_T_r + v_h / m_a_s;
+        }
+        if (d < d_min)
+        {
+            h = coef*v_r;
+        }
+        else
+        {
+            //x = np.array([d-dmin, coef*v])
+            //h = np.linalg.norm(x, ord=1)
+            h =  d - d_min + coef * v_r;
+        }
+      }
+    }
+  }
+
+  void ThorQP::compute_theta(const double& v_h, const double& v_r, const double& d, std::vector<double>& theta)
   {
     if (v_r < 0.0)
     {
-      theta =   v_r / m_a_s
-              - m_T_r
-              - v_h / m_a_s;
+      theta[0] = 1.0;
+      if (v_h > 0.0)
+      {
+        theta[1] =   v_r / m_a_s
+                - m_T_r
+                - v_h / m_a_s;
+      }
+      else if (v_h <= v_r)
+      {
+        theta[1] = 0.0;
+      }
+      else
+      {
+        theta[1] =  (v_h - v_r)/ m_a_s
+             + m_T_r;
+      }
     }
     else
-    {
-      theta = - m_T_r
-              + (v_r - v_h) / m_a_s;
+    { 
+      if (m_use_cbf_move_away)
+      {
+        theta[0] = 1.0;
+        theta[1] = - m_T_r
+                + (v_r - v_h) / m_a_s;
+      }
+      else
+      {
+        double coef, d_min;
+        if (v_h < 0)
+        {
+          d_min = m_C;
+          coef = m_T_r;
+        }
+        else
+        {
+          d_min = m_C + v_h * m_T_r;
+          coef = m_T_r + v_h / m_a_s;
+        }
+        if (d < d_min)
+        {
+          theta[0] = 0.0; 
+        }
+        else 
+        {
+          theta[0] = 1.0;
+        }
+        theta[1] =  -coef; // the minus sign because we use -theta in the optimization problem
+      }
     }
   }
 
@@ -281,6 +432,14 @@ namespace math
     {
       m_use_cbf=enable_cbf_bounds;
       m_are_matrices_updated=false;
+    }
+  }
+
+  void ThorQP::activateCbfMoveAway(const bool enable_cbf_move_away)
+  {
+    if (m_use_cbf_move_away!=enable_cbf_move_away)
+    {
+      m_use_cbf_move_away=enable_cbf_move_away;
     }
   }
 
@@ -596,7 +755,7 @@ namespace math
     return m_state;
   }
 
-  double ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
+  std::vector<double> ThorQP::computedCostrainedSolution ( const Eigen::VectorXd& targetDq,
                                             const Eigen::VectorXd& next_targetQ, 
                                             const double& target_scaling, 
                                             const Eigen::VectorXd& x0,
@@ -605,6 +764,7 @@ namespace math
                                             Eigen::VectorXd& next_acc, 
                                             double& next_scaling)
   {
+    std::vector<double> return_value(6, 0.0);
     // Build cost matrices and baseline inequality vector
     computeActualMatrices(targetDq,next_targetQ,target_scaling,x0);
     Eigen::VectorXd ci0=m_ci0;
@@ -640,8 +800,8 @@ namespace math
       Eigen::Vector3d p_r, d_vec, e_rh, v_r, p_h;
       Eigen::RowVectorXd L_g, A_barrier;
 
-      double d, v_rel, vh_proj, d_min, theta, L_f, b_barrier;
-
+      double d, v_rel, vh_proj, d_min, L_f, b_barrier, eta;
+      std::vector<double> theta(2);
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> J, dJ;
       J.resize(m_nax, m_model.nv);
       dJ.resize(m_nax, m_model.nv);
@@ -715,12 +875,24 @@ namespace math
           // std::cout << "Jacobian computed" << std::endl;
 
           // barrier terms ----------------------------------------
-          get_d_min(vh_proj, v_rel, d_min);  // d_min is the minimum distance to human
-          double h_temp = d - d_min;   // barrier value
-
+          // get_d_min(vh_proj, v_rel, d_min);  // d_min is the minimum distance to human
+          double h_temp; //barrier value
+          compute_h(vh_proj, v_rel, d, h_temp); // h_temp is the barrier value
+          // std::cout << "Minimum barrier value: " << h_min << std::endl;
+          // std::cout << "Control instant: " << i << std::endl;
+          // std::cout << "Frame ID: " << frameId << std::endl;
+          // std::cout << "Relative velocity: " << v_rel << std::endl;
+          // std::cout << "Projected velocity: " << vh_proj << std::endl;
+          // std::cout << "Distance to human: " << d << std::endl;
           if (h_temp < h_min)
           {
-            h_min = h_temp;  // keep the minimum value
+           h_min = h_temp; // update minimum barrier value
+           return_value[0] = h_temp;  // keep the minimum value
+           return_value[1] = i; // keep the index of the control interval with the minimum value
+           return_value[2] = frameId; // keep the index of the frame with the minimum value
+           return_value[3] = d; // keep the minimum distance to human
+           return_value[4] = v_rel; // keep the relative velocity
+           return_value[5] = vh_proj; // keep the projected velocity
           }
           // std::cout << "Barrier value: " << m_h << std::endl;
           // std::cout << "Distance to human: " << d << std::endl;
@@ -729,15 +901,16 @@ namespace math
           // std::cout << "vh_proj: " << vh_proj << std::endl;
           // std::cout << "Jlin: " << Jlin << std::endl;
           // std::cout << "dJlin: " << dJlin << std::endl;
-          get_theta(vh_proj, v_rel, theta);
-
+          compute_theta(vh_proj, v_rel, d, theta);
           state_derivative = range_state_derivative(d_vec, v_r);
           f = state_derivative.first;  // 2×1
           g = state_derivative.second;  // 2×3
 
-          partial_h_on_x << 1.0,      // ∂h/∂d
-                            -theta;    // ∂h/∂v_rel
-                            
+
+
+          partial_h_on_x << theta.at(0),      // ∂h/∂d
+                            -theta.at(1);    // ∂h/∂v_rel
+
           // Lie derivatives                 
           L_f = (partial_h_on_x.dot(f));  // 1×1
           L_g = partial_h_on_x * g;
@@ -746,7 +919,10 @@ namespace math
           // std::cout << "g: " << g << std::endl;
           A_barrier = L_g * Jlin;   // 1×n
           b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_alpha * h_temp;  // scalar
-
+          if (b_barrier == 0.0)
+          {
+            b_barrier = 1e-6; // avoid numerical issues
+          }
           // Eigen::RowVectorXd A_barrier = -Theta * Jd;   // 1×n  (note minus)
           // double             b_barrier = -Jd.dot(dq) + m_alpha * m_h;
           // std::cout << "Barrier terms computed" << std::endl;
@@ -763,13 +939,25 @@ namespace math
         // std::cout << m_CI.block(0,n_cols - 2*m_nc, m_CI.rows(), 2*m_nc) << std::endl;
         // std::cout << ci0.segment(n_cols - m_nc, m_nc).transpose()  << std::endl;
       }
-      m_h = h_min; // Store the minimum barrier value
+      m_h = return_value[0]; // Store the minimum barrier value
       std::cout << "Minimum barrier value: " << m_h << std::endl;
+      std::cout << "Frame ID: " << return_value[2] << std::endl;
     }
-    
-    Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
-    std::cout << "Quadratic program solved" << std::endl;
     // std::cout << "M_CI size: " << m_CI.rows() << " x " << m_CI.cols() << std::endl;
+    // std::cout << "M_CI rank: " << m_CI.fullPivLu().rank() << std::endl;
+    // std::cout << "M_CI: rank (fcn):" << computeRank(m_CI) << std::endl;
+    // std::cout << "m_ci0: " << ci0.tail(50).transpose() << std::endl;
+    double sol = Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
+    // std::cout << "Solution: " << std::to_string(sol) << std::endl;
+    // std::cout << "Sol is nan? " << std::isnan(sol) << std::endl;
+    // std::cout << "Sol is nan? " << (double)(sol==sol) << std::endl;
+    // std::cout << "NAN is nan? " << std::isnan(NAN) << std::endl;
+
+    if (std::to_string(sol) == "nan")
+    {
+     throw std::runtime_error("Problem is not feasible. Check the constraints and the target values.");
+    }
+
     // std::cout << "m_ci0 size: " << m_ci0.size() << " x 1" << std::endl;
     next_acc=m_sol.head(m_nax);
     std::cout << "Next acceleration: " << next_acc.transpose() << std::endl;
@@ -781,7 +969,7 @@ namespace math
     // std::cout << "control intervals: " << m_control_intervals.transpose() << std::endl;
     m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
     // std::cout << "Solution computed" << std::endl;
-    return m_h;
+    return return_value;
   }
 
   bool ThorQP::computedUncostrainedSolution ( const Eigen::VectorXd& targetDq,

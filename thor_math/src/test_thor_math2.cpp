@@ -53,7 +53,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
 {
   double radius = 0.3;               // Smaller, so stays inside workspace
   double omega = 2*M_PI/5.0;
-  double center_x = 0.9;             // Further in front of the robot
+  double center_x = 0.95;             // Further in front of the robot
   double center_y = 0.3;
   double center_z = 0.65;             // Higher up
 
@@ -75,9 +75,9 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
     Eigen::VectorXd rel_error;
 
     std::ofstream logfile("/home/galileo/projects/thor_ws/src/thor_core/thor_math/trajectory_log.csv");
-    logfile << "time,q1,q2,q3,q4,q5,q6,ph_x,ph_y,ph_z, h\n";
+    logfile << "time,q1,q2,q3,q4,q5,q6,ph_x,ph_y,ph_z,h,n_c,frameId,d,vr,vh\n";
 
-    std::string urdf_path = "/home/galileo/projects/thor_ws/src/thor_core/thor_math/ur10/ur10.urdf"; // Replace with your URDF path
+    std::string urdf_path = "/home/galileo/projects/thor_ws/src/thor_core/thor_math/ur10/ur10_with_intermediates.urdf"; // Replace with your URDF path
     pinocchio::Model model;
     pinocchio::urdf::buildModel(urdf_path, model);
 
@@ -86,7 +86,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
     // Dummy initialization
     unsigned int nax = model.nv; // Number of joints in the model
     unsigned int nc = 5;
-    double horizon = 0.5; // Control horizon time in seconds
+    double horizon = 0.05; // Control horizon time in seconds
     double st = 0.002;
 
     Eigen::VectorXd q_init(nax); // nax = number of joints
@@ -105,7 +105,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
     std::cout << "Setting up ThorQP with " << nax << " joints and " << nc << " intervals." << std::endl;
     
     qp.setIntervals(nc, nax, horizon, st);
-    qp.setCBFParameters(2.5,0.15,0.25,5.0);
+    qp.setCBFParameters(2.5,0.15,0.15,3.0);
     qp.setConstraints(Eigen::VectorXd::Constant(nax, M_PI),   // qmax
                         Eigen::VectorXd::Constant(nax, -M_PI),  // qmin
                         Eigen::VectorXd::Constant(nax, 20.0),   // Dqmax
@@ -113,15 +113,15 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
                         Eigen::VectorXd::Constant(nax, 10.0)); // tau_max
 
     std::cout << "Setting weight functions." << std::endl;
-    qp.setWeigthFunction(0, 0, 0.0, 1e+2, 1e+6);
+    qp.setWeigthFunction(1.0e-6 , 1.0e-12, 0.0, 1e+1, 1e+4);
 
     qp.activatePositionBounds(true);
     qp.activateTorqueBounds(false);
     qp.activateCbfBounds(true);
 
 
-     std::vector<unsigned int> frame_ids;
-
+    std::vector<unsigned int> frame_ids;
+    // frame_ids.push_back(43);  
     for (std::size_t i = 0; i < model.frames.size(); ++i)
     {
         const pinocchio::Frame &f = model.frames[i];
@@ -200,7 +200,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
             human_circle(nominal_t, p_h, vh);
             std::cout << __LINE__ << " ... " << std::endl;
             printf("aaa\n");
-            double h = qp.computedCostrainedSolution(targetDq,next_targetQ,target_scaling,qp.getState(), vh, p_h, next_acc,scaling);
+            std::vector<double> res = qp.computedCostrainedSolution(targetDq,next_targetQ,target_scaling,qp.getState(), vh, p_h, next_acc,scaling);
             // std::cout << __LINE__ << " ... " << std::endl;
             // std::cout << "Next Acceleration: " << next_acc.transpose() << std::endl;
             // std::cout << "Next Scaling: " << scaling << std::endl;
@@ -218,8 +218,8 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
 
           
             logfile << t;
-            for (int i = 0; i < nax; ++i) logfile << "," << qp.getState()[i];   // robot joints
-            logfile << "," << p_h(0) << "," << p_h(1) << "," << p_h(2) << "," << h << "\n"; // human pos
+                    for (int i = 0; i < nax; ++i) logfile << "," << qp.getState()[i];   // robot joints
+                    logfile << "," << p_h(0) << "," << p_h(1) << "," << p_h(2) << "," << res.at(0) << "," << res.at(1) << "," << res.at(2) << "," << res.at(3) << "," << res.at(4) << "," << res.at(5) <<  "\n"; // human pos
             iter++;
 
     }
