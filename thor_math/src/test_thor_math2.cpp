@@ -52,9 +52,9 @@ void triangularWave(double t, const double& scaling, double& pos, double& vel, d
 void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
 {
   double radius = 0.3;               // Smaller, so stays inside workspace
-  double omega = 2*M_PI/10.0;
-  double center_x = 0.70;             // Further in front of the robot
-  double center_y = 0.2;
+  double omega = 2*M_PI/5.0;
+  double center_x = 0.8;             // Further in front of the robot
+  double center_y = 0.3;
   double center_z = 0.65;             // Higher up
 
   pos(0) = radius*cos(omega*t) + center_x;
@@ -65,6 +65,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
   vel(0) = -radius * omega * sin(omega * t);   // dx/dt
   vel(1) =  radius * omega * cos(omega * t);   // dy/dt
   vel(2) = 0.0;                                // dz/dt
+
 }
 
  int main(int argc, char **argv){
@@ -105,15 +106,15 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
     std::cout << "Setting up ThorQP with " << nax << " joints and " << nc << " intervals." << std::endl;
     
     qp.setIntervals(nc, nax, horizon, st);
-    qp.setCBFParameters(2.5,0.15,0.15,300000.0);
+    qp.setCBFParameters(2.5,0.15,0.5,3.0);
     qp.setConstraints(Eigen::VectorXd::Constant(nax, M_PI),   // qmax
                         Eigen::VectorXd::Constant(nax, -M_PI),  // qmin
-                        Eigen::VectorXd::Constant(nax, 200.0),   // Dqmax
-                        Eigen::VectorXd::Constant(nax, 5000.0),   // DDqmax
+                        Eigen::VectorXd::Constant(nax, 30.0),   // Dqmax
+                        Eigen::VectorXd::Constant(nax, 500.0),   // DDqmax
                         Eigen::VectorXd::Constant(nax, 10.0)); // tau_max
 
     std::cout << "Setting weight functions." << std::endl;
-    qp.setWeigthFunction(1.0e-9 , 1.0e-12, 0.0, 5e+1, 5e+3);
+    qp.setWeigthFunction(1.0e-6, 1.0e-9, 0.0, 5e+1, 1e+4);
 
     qp.activatePositionBounds(true);
     qp.activateTorqueBounds(false);
@@ -200,7 +201,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
             human_circle(nominal_t, p_h, vh);
             std::cout << __LINE__ << " ... " << std::endl;
             printf("aaa\n");
-            std::vector<double> res = qp.computedCostrainedSolution(targetDq,next_targetQ,target_scaling,qp.getState(), next_acc,scaling);//, vh, p_h);
+            std::vector<double> res = qp.computedCostrainedSolution(targetDq,next_targetQ,target_scaling,qp.getState(), next_acc,scaling, vh, p_h);
             // std::cout << __LINE__ << " ... " << std::endl;
             // std::cout << "Next Acceleration: " << next_acc.transpose() << std::endl;
             // std::cout << "Next Scaling: " << scaling << std::endl;

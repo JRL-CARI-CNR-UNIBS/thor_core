@@ -208,64 +208,6 @@ namespace math
     m_use_cbf=false;
   }
 
-  void ThorQP::get_d_min(const double& v_h, const double& v_r, const double& d, double& d_min)
-  {
-    double coef;
-    if (v_r < 0.0)
-    {
-      if (v_r < 0.0 && v_h > 0.0)
-      {
-        d_min = m_C
-                + v_r * v_r / (2.0 * m_a_s)
-                - v_r * m_T_r
-                - v_r * v_h / m_a_s
-                + m_T_r * v_h;
-      }
-      else if (v_r < 0.0 && v_h <= v_r)
-      {
-        d_min = m_C;
-      }
-      else if (v_r < 0.0 && v_h > v_r )
-      {
-        d_min = m_C 
-                + (v_h - v_r) * (v_h - v_r) * 0.5 / m_a_s
-                - (v_h - v_r) * m_T_r;
-      }
-    }
-    else 
-    {
-      if (m_use_cbf_move_away)
-      {
-        d_min = m_C
-                + (v_h - v_r) * m_T_r
-                + (v_h - v_r) * (v_h - v_r) / (2.0 * m_a_s);
-      }
-      else 
-      {
-        if (v_h < 0)
-        {
-          d_min = m_C;
-          coef = m_T_r;
-        }
-        else
-        {
-            d_min = m_C + v_h * m_T_r;
-            coef = m_T_r + v_h / m_a_s;
-        }
-        if (d < d_min)
-        {
-            d_min = d - coef*v_r;
-        }
-        else
-        {
-            //x = np.array([d-dmin, coef*v])
-            //h = np.linalg.norm(x, ord=1)
-            d_min =  d_min - coef * v_r;
-        }
-      }
-    }
-  }
-
   void ThorQP::compute_h(const double& v_h, const double& v_r, const double& d, double& h)
   {
    double coef, d_min;
@@ -273,34 +215,37 @@ namespace math
     {
       if (v_h > zero_vel)
       {
-        h = d - (m_C
-                + v_r * v_r / (2.0 * m_a_s)
-                - v_r * m_T_r
-                - v_r * v_h / m_a_s
-                + m_T_r * v_h);
+        h = d - m_C
+                - v_r * v_r / (2.0 * m_a_s)
+                + (v_r - v_h) * m_T_r
+                + v_r * v_h / m_a_s;
       }
       else if (v_h <= v_r)
       {
-        h = d - m_C;
+        //h = d - m_C;
+        //TOASK
+        h = d - m_C
+              + v_r * v_r / (2.0 * m_a_s)
+              + v_r * m_T_r;
       }
       else
       {
-        h = d - (m_C 
-                + (v_h - v_r) * (v_h - v_r) * 0.5 / m_a_s
-                - (v_h - v_r) * m_T_r);
+        h = d - m_C
+                - (v_h - v_r) * (v_h - v_r) * 0.5 / m_a_s
+                + (v_r - v_h) * m_T_r;
       }
     }
     else 
     {
       if (m_use_cbf_move_away)
       {
-        h = d - (m_C
-                + (v_h - v_r) * m_T_r
-                + (v_h - v_r) * (v_h - v_r) / (2.0 * m_a_s));
+        h = d - m_C
+                - (v_r - v_h) * m_T_r
+                - (v_r - v_h) * (v_r - v_h) / (2.0 * m_a_s);
       }
       else 
       {
-        if (v_h < zero_vel)
+        if (v_h <= zero_vel)
         {
           d_min = m_C;
           coef = m_T_r;
@@ -331,27 +276,30 @@ namespace math
       theta[0] = 1.0;
       if (v_h > zero_vel)
       {
-        theta[1] =   v_r / m_a_s
-                - m_T_r
-                - v_h / m_a_s;
+        theta[1] =  - v_r / m_a_s
+                    + m_T_r
+                    + v_h / m_a_s;
       }
       else if (v_h <= v_r)
       {
-        theta[1] = 0.0;
+        //theta[1] = zero_vel;
+        theta[1] =  + v_r / m_a_s
+                    + m_T_r;
       }
       else
       {
         theta[1] =  (v_h - v_r)/ m_a_s
-             + m_T_r;
+                    + m_T_r;
       }
     }
+     
     else
     { 
       if (m_use_cbf_move_away)
       {
         theta[0] = 1.0;
         theta[1] = - m_T_r
-                + (v_r - v_h) / m_a_s;
+                - (v_r - v_h) / m_a_s;
       }
       else
       {
@@ -879,7 +827,7 @@ namespace math
           // get_d_min(vh_proj, v_rel, d_min);  // d_min is the minimum distance to human
           double h_temp; //barrier value
           compute_h(vh_proj, v_rel, d, h_temp); // h_temp is the barrier value
-          // std::cout << "Minimum barrier value: " << h_min << std::endl;
+          // std::cout << "Minimum barrier value: " << h_temp << std::endl;
           // std::cout << "Control instant: " << i << std::endl;
           // std::cout << "Frame ID: " << frameId << std::endl;
           // std::cout << "Relative velocity: " << v_rel << std::endl;
@@ -910,7 +858,7 @@ namespace math
 
 
           partial_h_on_x << theta.at(0),      // ∂h/∂d
-                            -theta.at(1);    // ∂h/∂v_rel
+                            theta.at(1);    // ∂h/∂v_rel
 
           // Lie derivatives                 
           L_f = (partial_h_on_x.dot(f));  // 1×1
@@ -933,16 +881,23 @@ namespace math
           ci0(n_cols - m_nc*(j+1) + i) = b_barrier;
 
     //       // std::cout << "CI and ci0 updated" << std::endl;
-    //       std::cout << "A_barrier: " << A_barrier << std::endl;
-    //       std::cout << "b_barrier: " << b_barrier << std::endl;
+          // std::cout << "A_barrier: " << A_barrier << std::endl;
+          // std::cout << "b_barrier: " << b_barrier << std::endl;
+          // std:: cout << "theta: " << theta.at(0) << ", " << theta.at(1) << std::endl;
+          // std:: cout << "f: " << f.transpose() << std::endl;
+          // std:: cout << "g: " << g << std::endl;
     // //      std::cout << n_cols - m_nc + i << std::endl;
         }
         // std::cout << m_CI.block(0,n_cols - 2*m_nc, m_CI.rows(), 2*m_nc) << std::endl;
         // std::cout << ci0.segment(n_cols - m_nc, m_nc).transpose()  << std::endl;
       }
       m_h = return_value[0]; // Store the minimum barrier value
-      std::cout << "Minimum barrier value: " << m_h << std::endl;
-      std::cout << "Frame ID: " << return_value[2] << std::endl;
+      // std::cout << "Minimum barrier value: " << m_h << std::endl;
+      // std::cout << "Frame ID: " << return_value[2] << std::endl;
+      // std::cout << "Control interval: " << return_value[1] << std::endl;
+      // std::cout << "Distance to human: " << return_value[3] << std::endl;
+      // std::cout << "Relative velocity: " << return_value[4] << std::endl;
+      // std::cout << "Projected velocity: " << return_value[5] << std::endl;
     }
     // std::cout << "M_CI size: " << m_CI.rows() << " x " << m_CI.cols() << std::endl;
     // std::cout << "M_CI rank: " << m_CI.fullPivLu().rank() << std::endl;
