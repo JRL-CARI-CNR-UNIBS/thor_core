@@ -117,17 +117,16 @@ class ThorQP
     Eigen::VectorXd m_state;
     
     bool               m_use_cbf;
-    pinocchio::Model   m_model;          // robot model (built from URDF once)
-    pinocchio::Data    m_data;           // Pinocchio runtime buffers
-    double             m_a_s, m_T_r, m_C;// parameters from your d_max formula
-    double             m_gamma;    
-    double             m_h;              // barrier value
+    pinocchio::Model   m_model;           // robot model (built from URDF once)
+    pinocchio::Data    m_data;            // Pinocchio runtime buffers
+    double             m_a_s, m_T_r, m_C; // parameters from d_min formula
+    double             m_gamma;           // CBF gain
+    double             m_h;               // barrier value
     rdyn::ChainPtr  m_chain;
     std::vector<unsigned int> m_frameIds;
 
     bool m_use_cbf_move_away = false; // if true, the CBF will try to mantain safaty distance also when the robot is moving away
 
-    void get_d_min(const double& v_h, const double& v_r, const double& d, double& d_min);
     void compute_h(const double& v_h, const double& v_r, const double& d, double& h);
     void compute_theta(const double& v_h, const double& v_r, const double& d, std::vector<double>& theta);
 
@@ -205,8 +204,16 @@ class ThorQP
 
         m_state = other.m_state;
 
-  //      m_chain = other.m_chain;      
-        setIntervals(m_nc, m_nax, m_control_horizon_time, m_dt);
+        // CBF parameters cloning
+        setCBFParameters(other.m_a_s, other.m_T_r, other.m_C, other.m_gamma);
+        
+        m_use_cbf = other.m_use_cbf;
+        m_model = other.m_model;
+        m_data = other.m_data;
+        m_frameIds = other.m_frameIds;
+        m_h = other.m_h;
+
+        setIntervals(m_nc, m_nax, m_control_horizon_time, m_dt);         // CHECK THIS LINE
 
         std::cout << "CLONING THORQP " << id << std::endl;
         std::cout<< "m_nax " << m_nax << std::endl;
