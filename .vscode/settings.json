@@ -79,6 +79,7 @@
         "concepts": "cpp",
         "shared_mutex": "cpp",
         "stop_token": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "ranges": "cpp"
     }
 }

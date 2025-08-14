@@ -309,6 +309,7 @@ class ThorQP
     Eigen::VectorXd getFirstPredictionPos();
     Eigen::VectorXd getFirstPredictionVel();
     double getDt(){return m_dt;};
+    double getNumPh(){return m_num_ph;};
   // void setDynamicsChain(const rdyn::ChainPtr& chain);
   // ThorQP clone();
 };
