@@ -133,7 +133,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
             std::cout << "Frame ID: " << i << ", Name: " << f.name << std::endl;
         }
       }
-    qp.setFrameIds(frame_ids);
+    qp.setCbfIds(frame_ids, 1);
     if (qp.needUpdate()) 
     {
        qp.updateMatrices();
@@ -158,11 +158,10 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
        
         Eigen::VectorXd next_acc;
         double scaling;
-
-        Eigen::Vector3d p_h; // Human position
-        Eigen::Vector3d vh;
+        std::vector<Eigen::Vector3d> p_h(1); // Human position vector with 1 element
+        std::vector<Eigen::Vector3d> vh(1);  // Human velocity vector with 1 element
         // size_t frameId = model.getFrameId("wrist_3_joint"); // Example frame ID
-       
+             
         // Run constrained QP solution
         Eigen::VectorXd prediction_time = qp.getPredictionTimeInstant();
         int iter = 0;
@@ -198,7 +197,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
         }
 
 
-            human_circle(nominal_t, p_h, vh);
+            human_circle(nominal_t, p_h.at(0), vh.at(0));
             std::cout << __LINE__ << " ... " << std::endl;
             printf("aaa\n");
             std::vector<double> res = qp.computedCostrainedSolution(targetDq,next_targetQ,target_scaling,qp.getState(), next_acc,scaling, vh, p_h);
@@ -220,7 +219,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
           
             logfile << t;
                     for (int i = 0; i < nax; ++i) logfile << "," << qp.getState()[i];   // robot joints
-                    logfile << "," << p_h(0) << "," << p_h(1) << "," << p_h(2) << "," << res.at(0) << "," << res.at(1) << "," << res.at(2) << "," << res.at(3) << "," << res.at(4) << "," << res.at(5) <<  "\n"; // human pos
+                    logfile << "," << p_h.at(0)(0) << "," << p_h.at(0)(1) << "," << p_h.at(0)(2) << "," << res.at(0) << "," << res.at(1) << "," << res.at(2) << "," << res.at(3) << "," << res.at(4) << "," << res.at(5) <<  "\n"; // human pos
             iter++;
 
     }
