@@ -334,6 +334,7 @@ namespace math
     m_T_r=T_r;
     m_C=C;
     m_gamma=gamma;
+    
   }
 
   void ThorQP::setPinocchioModel ( const pinocchio::Model& model )
@@ -452,9 +453,10 @@ namespace math
   m_are_matrices_updated=false;
 }
 
-  void ThorQP::setFrameIds(const std::vector<unsigned int>& frameIds)
+  void ThorQP::setCbfIds(const std::vector<unsigned int>& frameIds, const int& num_ph)
   {
     m_frameIds = frameIds;
+    m_num_ph = num_ph;
     m_are_matrices_updated = false;
   }
 
@@ -586,11 +588,11 @@ namespace math
     if (m_use_cbf)
     {
       int old_cols=m_CI.cols();
-      m_CI.conservativeResize(m_CI.rows(), m_CI.cols()+m_frameIds.size()*m_nc);
-      m_ci0.conservativeResize(m_ci0.size() +m_frameIds.size()*m_nc);
+      m_CI.conservativeResize(m_CI.rows(), m_CI.cols() + m_num_ph * m_frameIds.size() * m_nc);
+      m_ci0.conservativeResize(m_ci0.size() + m_num_ph * m_frameIds.size() * m_nc);
 
-      m_CI.block(0,old_cols, m_CI.rows(),+m_frameIds.size()*m_nc).setZero();
-      m_ci0.tail(m_frameIds.size()*m_nc).setZero();
+      m_CI.block(0,old_cols, m_CI.rows(), m_num_ph * m_frameIds.size()*m_nc).setZero();
+      m_ci0.tail(m_num_ph * m_frameIds.size()*m_nc).setZero();
     }
 
     m_next_position_forced_resp=m_position_forced_resp.topRows(m_nax);
@@ -709,8 +711,8 @@ namespace math
                                             const Eigen::VectorXd& x0,
                                             Eigen::VectorXd& next_acc, 
                                             double& next_scaling,
-                                            const Eigen::Vector3d &vh, 
-                                            const Eigen::Vector3d &p_human
+                                            const std::vector<Eigen::Vector3d> &v_h_vector, 
+                                            const std::vector<Eigen::Vector3d> &p_h_vector
                                             )
   {
     std::vector<double> return_value(6, 0.0);
@@ -745,12 +747,7 @@ namespace math
     // CBF constraint
     if (m_use_cbf)
     {
-      Eigen::RowVector2d f, partial_h_on_x;
-      Eigen::Vector3d p_r, d_vec, e_rh, v_r, p_h;
-      Eigen::RowVectorXd L_g, A_barrier;
-
-      double d, v_rel, vh_proj, d_min, L_f, b_barrier, eta;
-      std::vector<double> theta(2);
+      
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> J, dJ;
       J.resize(m_nax, m_model.nv);
       dJ.resize(m_nax, m_model.nv);
@@ -765,11 +762,7 @@ namespace math
         size_t frameId = m_frameIds[j];
         for ( size_t i = 0; i< m_nc; i++ )
         {
-          // p_h prediction
-          for (size_t k=0; k< 3; k++)
-          {
-            p_h(k) = p_human(k) + vh(k) * m_prediction_time(i); // human position at time t
-          }
+          Eigen::Vector3d p_r, v_r;
           const Eigen::VectorXd &q  = m_prediction_pos.segment(m_nax*i, m_nax);
           const Eigen::VectorXd &dq = m_prediction_vel.segment(m_nax*i, m_nax);
           // std::cout << "q: " << q.transpose() << std::endl;
@@ -781,17 +774,9 @@ namespace math
           pinocchio::updateFramePlacements(m_model, m_data);
           // std::cout << "Pinocchio kinematics done" << std::endl;
           p_r   = m_data.oMf[frameId].translation();   // robot pos
-          // std::cout << "Robot position: " << p_r.transpose() << std::endl;
-          // std::cout << "Human position: " << p_h.transpose() << std::endl;
-          d_vec = p_r - p_h;                            // to human
-          d     = std::max(1e-6, d_vec.norm());           // avoid 0
-          e_rh  = d_vec / d;       
-
-          vh_proj = e_rh.dot(vh);                       // unit dir
           
           auto twist =  pinocchio::getFrameVelocity(m_model, m_data, frameId, pinocchio::LOCAL_WORLD_ALIGNED);
           v_r = twist.linear();                // robot linear velocity
-          v_rel = v_r.dot(e_rh);                  // robot velocity
           
           // std::cout << "Distance to human: " << d << std::endl;
           // Jacobian (linear part) -----------------------------------------------
@@ -823,63 +808,93 @@ namespace math
           dJlin = dJ.topRows<3>(); // 3×n
           // std::cout << "Jacobian computed" << std::endl;
 
-          // barrier terms ----------------------------------------
-          // get_d_min(vh_proj, v_rel, d_min);  // d_min is the minimum distance to human
-          double h_temp; //barrier value
-          compute_h(vh_proj, v_rel, d, h_temp); // h_temp is the barrier value
-          // std::cout << "Minimum barrier value: " << h_temp << std::endl;
-          // std::cout << "Control instant: " << i << std::endl;
-          // std::cout << "Frame ID: " << frameId << std::endl;
-          // std::cout << "Relative velocity: " << v_rel << std::endl;
-          // std::cout << "Projected velocity: " << vh_proj << std::endl;
-          // std::cout << "Distance to human: " << d << std::endl;
-          if (h_temp < h_min)
+          //--------------------- COMPUTATION OF HUMAN DEPENDANT TERMS ------------------------
+          for (size_t k = 0; k < m_num_ph; ++k)
           {
-           h_min = h_temp; // update minimum barrier value
-           return_value[0] = h_temp;  // keep the minimum value
-           return_value[1] = i; // keep the index of the control interval with the minimum value
-           return_value[2] = frameId; // keep the index of the frame with the minimum value
-           return_value[3] = d; // keep the minimum distance to human
-           return_value[4] = v_rel; // keep the relative velocity
-           return_value[5] = vh_proj; // keep the projected velocity
+            Eigen::RowVector2d f, partial_h_on_x;
+            Eigen::Vector3d p_r, d_vec, e_rh, p_h;
+            Eigen::RowVectorXd L_g, A_barrier;
+
+            double d, v_rel, vh_proj, d_min, L_f, b_barrier, eta;
+            std::vector<double> theta(2);
+            
+            Eigen::Vector3d p_h_init = p_h_vector[k]; // human position of k-esim point
+            Eigen::Vector3d v_h = v_h_vector[k]; // human velocity of k-esim point
+
+            for (size_t l = 0; l < 3; l++) // p_h prediction
+            {
+              p_h(l) = p_h_init(l) + v_h(l) * m_prediction_time(i); // human position at time t
+            }
+
+            d_vec = p_r - p_h;                            // to human
+            d     = std::max(1e-6, d_vec.norm());         // avoid 0
+            e_rh  = d_vec / d;                            // unit dir
+            vh_proj = e_rh.dot(v_h);                      // human velocity projected on the direction to the robot 
+            v_rel = v_r.dot(e_rh);                        // robot velocity projected on the human direction
+
+            // ---------------------------- BARRIER TERMS ---------------------------------------
+            double h_temp;                                // barrier value
+            compute_h(vh_proj, v_rel, d, h_temp); 
+
+            std::cout << "Minimum barrier value: " << h_temp << std::endl;
+            // std::cout << "Control instant: " << i << std::endl;
+            // std::cout << "Frame ID: " << frameId << std::endl;
+            // std::cout << "Relative velocity: " << v_rel << std::endl;
+            // std::cout << "Projected velocity: " << vh_proj << std::endl;
+            std::cout << "Distance to human: " << d << std::endl;
+            std::cout << "Robot position: " << p_r.transpose() << std::endl;
+            std::cout << "Human position: " << p_h.transpose() << std::endl;
+            // std::cout << "initial human position: " << p_human.transpose() << std::endl;
+            
+            if (h_temp < h_min)
+            {
+            h_min = h_temp; // update minimum barrier value
+            return_value[0] = h_temp;  // keep the minimum value
+            return_value[1] = i; // keep the index of the control interval with the minimum value
+            return_value[2] = frameId; // keep the index of the frame with the minimum value
+            return_value[3] = d; // keep the minimum distance to human
+            return_value[4] = v_rel; // keep the relative velocity
+            return_value[5] = vh_proj; // keep the projected velocity
+            }
+            // std::cout << "Barrier value: " << h_temp << std::endl;
+            // std::cout << "Distance to human: " << d << std::endl;
+            // // std::cout << "d_min: " << d_min << std::endl;
+            // // std::cout << "v_rel: " << v_rel << std::endl;
+            // std::cout << "vh_proj: " << vh_proj << std::endl;
+            // std::cout << "Jlin: " << Jlin << std::endl;
+            // std::cout << "dJlin: " << dJlin << std::endl;
+            compute_theta(vh_proj, v_rel, d, theta);                // h derivatives with respect to the state
+            state_derivative = range_state_derivative(d_vec, v_r);  // state derivatives
+            f = state_derivative.first;  // 2×1
+            g = state_derivative.second;  // 2×3
+
+
+
+            partial_h_on_x << theta.at(0),                          // ∂h/∂d
+                              theta.at(1);                          // ∂h/∂v_rel
+
+            // Lie derivatives                 
+            L_f = (partial_h_on_x.dot(f));  // 1×1
+            L_g = partial_h_on_x * g;
+            // std::cout << "L_g: " << L_g << std::endl;
+            // std::cout << "partial_h_on_x: " << partial_h_on_x << std::endl;
+            // std::cout << "g: " << g << std::endl;
+
+            // ------------------------------ BARRIER TERMS ---------------------------------------
+            A_barrier = L_g * Jlin;   // 1×n
+            b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_gamma * h_temp;  // scalar
+            if (b_barrier == 0.0)
+            {
+              b_barrier = 1e-6; // avoid numerical issues
+            }
+            // Eigen::RowVectorXd A_barrier = -Theta * Jd;   // 1×n  (note minus)
+            // double             b_barrier = -Jd.dot(dq) + m_gamma * m_h;
+            // std::cout << "Barrier terms computed" << std::endl;
+            // Append new row to CI / ci0  (quadprog expects CI^T x + ci0 ≥ 0) -------
+            // Note: CI is transposed in the solve_quadprog call, so we append a row
+            m_CI.col(n_cols - m_num_ph * m_nc * (j+1) + m_num_ph * i + k).segment(m_nax * i, m_nax) = A_barrier.transpose();  // A_barrier is 1×nax
+            ci0(n_cols - m_num_ph * m_nc * (j+1) + m_num_ph * i + k) = b_barrier;
           }
-          // std::cout << "Barrier value: " << m_h << std::endl;
-          // std::cout << "Distance to human: " << d << std::endl;
-          // std::cout << "d_min: " << d_min << std::endl;
-          // std::cout << "v_rel: " << v_rel << std::endl;
-          // std::cout << "vh_proj: " << vh_proj << std::endl;
-          // std::cout << "Jlin: " << Jlin << std::endl;
-          // std::cout << "dJlin: " << dJlin << std::endl;
-          compute_theta(vh_proj, v_rel, d, theta);
-          state_derivative = range_state_derivative(d_vec, v_r);
-          f = state_derivative.first;  // 2×1
-          g = state_derivative.second;  // 2×3
-
-
-
-          partial_h_on_x << theta.at(0),      // ∂h/∂d
-                            theta.at(1);    // ∂h/∂v_rel
-
-          // Lie derivatives                 
-          L_f = (partial_h_on_x.dot(f));  // 1×1
-          L_g = partial_h_on_x * g;
-          // std::cout << "L_g: " << L_g << std::endl;
-          // std::cout << "partial_h_on_x: " << partial_h_on_x << std::endl;
-          // std::cout << "g: " << g << std::endl;
-          A_barrier = L_g * Jlin;   // 1×n
-          b_barrier = (L_g * (dJlin * dq)).value() + L_f + m_gamma * h_temp;  // scalar
-          if (b_barrier == 0.0)
-          {
-            b_barrier = 1e-6; // avoid numerical issues
-          }
-          // Eigen::RowVectorXd A_barrier = -Theta * Jd;   // 1×n  (note minus)
-          // double             b_barrier = -Jd.dot(dq) + m_gamma * m_h;
-          // std::cout << "Barrier terms computed" << std::endl;
-          // Append new row to CI / ci0  (quadprog expects CI^T x + ci0 ≥ 0) -------
-          // Note: CI is transposed in the solve_quadprog call, so we append a row
-          m_CI.col(n_cols - m_nc*(j+1) + i).segment(m_nax * i, m_nax) = A_barrier.transpose();  // A_barrier is 1×nax
-          ci0(n_cols - m_nc*(j+1) + i) = b_barrier;
-
     //       // std::cout << "CI and ci0 updated" << std::endl;
           // std::cout << "A_barrier: " << A_barrier << std::endl;
           // std::cout << "b_barrier: " << b_barrier << std::endl;
@@ -904,7 +919,7 @@ namespace math
     // std::cout << "M_CI: rank (fcn):" << computeRank(m_CI) << std::endl;
     // std::cout << "m_ci0: " << ci0.tail(50).transpose() << std::endl;
     double sol = Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
-    std::cout << "Solution: " << std::to_string(sol) << std::endl;
+    // std::cout << "Solution: " << std::to_string(sol) << std::endl;
     // std::cout << "Sol is nan? " << std::isnan(sol) << std::endl;
     // std::cout << "Sol is nan? " << (double)(sol==sol) << std::endl;
     // std::cout << "NAN is nan? " << std::isnan(NAN) << std::endl;
@@ -916,7 +931,7 @@ namespace math
 
     // std::cout << "m_ci0 size: " << m_ci0.size() << " x 1" << std::endl;
     next_acc=m_sol.head(m_nax);
-    std::cout << "Next acceleration: " << next_acc.transpose() << std::endl;
+    // std::cout << "Next acceleration: " << next_acc.transpose() << std::endl;
     next_scaling=m_sol (m_nax*m_nc);
     m_prediction_vel = m_velocity_forced_resp*m_sol.head(m_nc*m_nax)+m_velocity_free_resp*x0.tail(m_nax);
     m_prediction_pos = m_position_forced_resp*m_sol.head(m_nc*m_nax)+m_position_free_resp*x0;

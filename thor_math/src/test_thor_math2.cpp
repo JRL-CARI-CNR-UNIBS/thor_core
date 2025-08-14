@@ -106,7 +106,7 @@ void human_circle(double t,  Eigen::Vector3d& pos, Eigen::Vector3d& vel)
     std::cout << "Setting up ThorQP with " << nax << " joints and " << nc << " intervals." << std::endl;
     
     qp.setIntervals(nc, nax, horizon, st);
-    qp.setCBFParameters(2.5,0.15,0.5,3.0);
+    qp.setCBFParameters(2.5,0.15,0.5, 3.0);
     qp.setConstraints(Eigen::VectorXd::Constant(nax, M_PI),   // qmax
                         Eigen::VectorXd::Constant(nax, -M_PI),  // qmin
                         Eigen::VectorXd::Constant(nax, 30.0),   // Dqmax

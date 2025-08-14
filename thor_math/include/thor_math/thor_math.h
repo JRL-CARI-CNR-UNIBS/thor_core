@@ -122,6 +122,7 @@ class ThorQP
     double             m_a_s, m_T_r, m_C; // parameters from d_min formula
     double             m_gamma;           // CBF gain
     double             m_h;               // barrier value
+    int                m_num_ph;          // number of human points considered  
     rdyn::ChainPtr  m_chain;
     std::vector<unsigned int> m_frameIds;
 
@@ -212,6 +213,7 @@ class ThorQP
         m_data = other.m_data;
         m_frameIds = other.m_frameIds;
         m_h = other.m_h;
+        m_num_ph = other.m_num_ph;
 
         setIntervals(m_nc, m_nax, m_control_horizon_time, m_dt);         // CHECK THIS LINE
 
@@ -227,7 +229,7 @@ class ThorQP
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     ThorQP();
 
-    void setCBFParameters ( const double& a_s, const double& T_r, const double& C, const double& gamma );
+    void setCBFParameters ( const double& a_s, const double& T_r, const double& C, const double& gamma);
 
     void setPinocchioModel ( const pinocchio::Model& model );
 
@@ -260,7 +262,7 @@ class ThorQP
 
     void setWeigthFunction( const double& lambda_acc, const double& lambda_tau, const double& lambda_jerk, const double& lambda_scaling, const double& lambda_clik );
 
-    void setFrameIds(const std::vector<unsigned int>& frameIds);
+    void setCbfIds(const std::vector<unsigned int>& frameIds, const int& num_ph);
 
 
     bool needUpdate(){return !m_are_matrices_updated;};
@@ -280,10 +282,25 @@ class ThorQP
                                         const Eigen::VectorXd& x0,
                                         Eigen::VectorXd& next_acc,
                                         double& next_scaling,
-                                        const Eigen::Vector3d &vh = Eigen::Vector3d::Zero(), 
-                                        const Eigen::Vector3d &p_human = Eigen::Vector3d::Zero()
+                                        const std::vector<Eigen::Vector3d> &v_h_vector, 
+                                        const std::vector<Eigen::Vector3d> &p_h_vector
     );
-    
+    // if ph_vector and vh_vector are not passed, initialize them to default values 
+    std::vector<double> computedCostrainedSolution(  const Eigen::VectorXd& targetDq,
+                                        const Eigen::VectorXd& next_targetQ,
+                                        const double& target_scaling,
+                                        const Eigen::VectorXd& x0,
+                                        Eigen::VectorXd& next_acc,
+                                        double& next_scaling
+    )
+    {
+      std::vector<Eigen::Vector3d> default_v_h(m_num_ph, Eigen::Vector3d::Zero() );
+      std::vector<Eigen::Vector3d> default_p_h(m_num_ph, Eigen::Vector3d::Constant(100.0));
+
+      return computedCostrainedSolution(targetDq, next_targetQ, target_scaling,
+                                        x0, next_acc, next_scaling,
+                                        default_v_h, default_p_h);
+    }
     void setInitialState(const Eigen::VectorXd& x0);
     void updateState( const Eigen::VectorXd& next_acc );
     Eigen::VectorXd getState();
