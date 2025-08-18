@@ -751,11 +751,11 @@ namespace math
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> J, dJ;
       J.resize(m_nax, m_model.nv);
       dJ.resize(m_nax, m_model.nv);
-
+      int h_index = 117;
       Eigen::Matrix<double,3,Eigen::Dynamic> Jlin, dJlin;
       Eigen::Matrix<double, 2, 3> g;
       std::pair<Eigen::Vector2d, Eigen::Matrix<double, 2, 3>> state_derivative;
-      double h_min = 1000.0; // Minimum value for the barrier function
+      double h_min = 100000.0; // Minimum value for the barrier function
 
       for (size_t j = 0; j < m_frameIds.size(); ++j)
       {
@@ -836,14 +836,14 @@ namespace math
             double h_temp;                                // barrier value
             compute_h(vh_proj, v_rel, d, h_temp); 
 
-            std::cout << "Minimum barrier value: " << h_temp << std::endl;
+            // std::cout << "Minimum barrier value: " << h_temp << std::endl;
             // std::cout << "Control instant: " << i << std::endl;
             // std::cout << "Frame ID: " << frameId << std::endl;
             // std::cout << "Relative velocity: " << v_rel << std::endl;
             // std::cout << "Projected velocity: " << vh_proj << std::endl;
-            std::cout << "Distance to human: " << d << std::endl;
-            std::cout << "Robot position: " << p_r.transpose() << std::endl;
-            std::cout << "Human position: " << p_h.transpose() << std::endl;
+            // std::cout << "Distance to human: " << d << std::endl;
+            // std::cout << "Robot position: " << p_r.transpose() << std::endl;
+            // std::cout << "Human position: " << p_h.transpose() << std::endl;
             // std::cout << "initial human position: " << p_human.transpose() << std::endl;
             
             if (h_temp < h_min)
@@ -855,6 +855,7 @@ namespace math
             return_value[3] = d; // keep the minimum distance to human
             return_value[4] = v_rel; // keep the relative velocity
             return_value[5] = vh_proj; // keep the projected velocity
+            h_index = k;
             }
             // std::cout << "Barrier value: " << h_temp << std::endl;
             // std::cout << "Distance to human: " << d << std::endl;
@@ -906,19 +907,33 @@ namespace math
         // std::cout << m_CI.block(0,n_cols - 2*m_nc, m_CI.rows(), 2*m_nc) << std::endl;
         // std::cout << ci0.segment(n_cols - m_nc, m_nc).transpose()  << std::endl;
       }
-      m_h = return_value[0]; // Store the minimum barrier value
-      // std::cout << "Minimum barrier value: " << m_h << std::endl;
+      m_h = h_min; // Store the minimum barrier value
+      std::cout << "Minimum barrier value: " << m_h << std::endl;
       // std::cout << "Frame ID: " << return_value[2] << std::endl;
       // std::cout << "Control interval: " << return_value[1] << std::endl;
-      // std::cout << "Distance to human: " << return_value[3] << std::endl;
+      std::cout << "Distance to human: " << return_value[3] << std::endl;
+      std::cout << "human index: " << h_index << std::endl;
+
       // std::cout << "Relative velocity: " << return_value[4] << std::endl;
       // std::cout << "Projected velocity: " << return_value[5] << std::endl;
+    }
+    double sol;
+    if (m_h > 5)
+    {
+      std::cout << "Solving quadratic program with reduced constraints" << std::endl;
+      Eigen::MatrixXd CI_temp = m_CI.block(0,0,m_CI.rows(),m_CI.cols()- m_nc * m_frameIds.size() * m_num_ph);
+      Eigen::VectorXd ci0_temp = m_ci0.segment(0, m_ci0.size() - m_nc * m_frameIds.size() * m_num_ph);
+      sol = Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,CI_temp,ci0_temp,m_sol);
+    }
+    else
+    {
+      sol = Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol);
     }
     // std::cout << "M_CI size: " << m_CI.rows() << " x " << m_CI.cols() << std::endl;
     // std::cout << "M_CI rank: " << m_CI.fullPivLu().rank() << std::endl;
     // std::cout << "M_CI: rank (fcn):" << computeRank(m_CI) << std::endl;
     // std::cout << "m_ci0: " << ci0.tail(50).transpose() << std::endl;
-    double sol = Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
+    // double sol = Eigen::solve_quadprog(m_H,m_f,m_CE,m_ce0,m_CI,ci0,m_sol );
     // std::cout << "Solution: " << std::to_string(sol) << std::endl;
     // std::cout << "Sol is nan? " << std::isnan(sol) << std::endl;
     // std::cout << "Sol is nan? " << (double)(sol==sol) << std::endl;
