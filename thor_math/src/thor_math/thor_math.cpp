@@ -721,7 +721,7 @@ namespace math
     Eigen::VectorXd ci0=m_ci0;
   
     int n_cols = m_CI.cols();
-
+    Eigen::Vector3d p_rmin, p_h_min;
     // Velocity bounds
     ci0.segment(2*m_nc*(m_nax+1)           ,m_nax*m_nc)+=m_velocity_free_resp*x0.tail(m_nax); // vel lower bounds
     ci0.segment(2*m_nc*(m_nax+1)+m_nax*m_nc,m_nax*m_nc)-=m_velocity_free_resp*x0.tail(m_nax); // vel upper bounds
@@ -812,7 +812,7 @@ namespace math
           for (size_t k = 0; k < m_num_ph; ++k)
           {
             Eigen::RowVector2d f, partial_h_on_x;
-            Eigen::Vector3d p_r, d_vec, e_rh, p_h;
+            Eigen::Vector3d d_vec, e_rh, p_h;
             Eigen::RowVectorXd L_g, A_barrier;
 
             double d, v_rel, vh_proj, d_min, L_f, b_barrier, eta;
@@ -825,7 +825,8 @@ namespace math
             {
               p_h(l) = p_h_init(l) + v_h(l) * m_prediction_time(i); // human position at time t
             }
-
+            // std::cout << "Human position: " << p_h.transpose() << std::endl;
+            // std::cout << "Robot position: " << p_r.transpose() << std::endl;
             d_vec = p_r - p_h;                            // to human
             d     = std::max(1e-6, d_vec.norm());         // avoid 0
             e_rh  = d_vec / d;                            // unit dir
@@ -856,6 +857,8 @@ namespace math
             return_value[4] = v_rel; // keep the relative velocity
             return_value[5] = vh_proj; // keep the projected velocity
             h_index = k;
+            p_rmin = p_r;
+            p_h_min = p_h;
             }
             // std::cout << "Barrier value: " << h_temp << std::endl;
             // std::cout << "Distance to human: " << d << std::endl;
@@ -909,10 +912,12 @@ namespace math
       }
       m_h = h_min; // Store the minimum barrier value
       std::cout << "Minimum barrier value: " << m_h << std::endl;
-      // std::cout << "Frame ID: " << return_value[2] << std::endl;
-      // std::cout << "Control interval: " << return_value[1] << std::endl;
+      std::cout << "Frame ID: " << return_value[2] << std::endl;
+      std::cout << "Control interval: " << return_value[1] << std::endl;
       std::cout << "Distance to human: " << return_value[3] << std::endl;
       std::cout << "human index: " << h_index << std::endl;
+      std::cout << "human point: " << p_h_min.transpose() << std::endl;
+      std::cout << "robot point: " << p_rmin.transpose() << std::endl;
 
       // std::cout << "Relative velocity: " << return_value[4] << std::endl;
       // std::cout << "Projected velocity: " << return_value[5] << std::endl;
@@ -920,6 +925,7 @@ namespace math
     double sol;
     if (m_h > 5)
     {
+      //TODO make the threshold value a parameter
       std::cout << "Solving quadratic program with reduced constraints" << std::endl;
       Eigen::MatrixXd CI_temp = m_CI.block(0,0,m_CI.rows(),m_CI.cols()- m_nc * m_frameIds.size() * m_num_ph);
       Eigen::VectorXd ci0_temp = m_ci0.segment(0, m_ci0.size() - m_nc * m_frameIds.size() * m_num_ph);
